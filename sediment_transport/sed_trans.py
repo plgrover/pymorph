@@ -2,7 +2,6 @@
 
 import numpy as np
 import math
-from wx.lib.agw.cubecolourdialog import Slope
 
 G=9.81
 rho = 1000.
