@@ -69,7 +69,10 @@ def get_Y(h,u,D0, rho_particule):
     y = tau/(gammaS*D0)
     return y
 
-
+def get_Y(shear, D0, rho_particule):
+    gammaS = get_gammS(rho_particule)
+    y = shear / (gammaS * D0)
+    return y
 
 #def get_unit_bed_load(h,u,D0,rho_particule,method='mpm'):
 def get_unit_bed_load(**kwargs): 
@@ -136,6 +139,38 @@ def get_unit_bed_load2(h,u,D0,rho_particule,type='mpm'):
         qsb = (math.sqrt(gammaS)*(D0**1.5)/math.sqrt(rho)) * phi
 
     return qsb*sign
+
+
+def get_unit_bed_load_slope_shear(shear, D0, slope, rho_particule, angleReposeDegrees=30.0, type='bagnold', useSlopeAdjust=True):
+    ''' Using Meyer-Peter and Muller but adjusted for the bed slope based on eq. 2.10 from my proposal'''
+    sign = 1
+    if shear < 0:
+        sign = -1
+
+    shear = abs(shear)
+
+    y = get_Y(shear, D0, rho_particule)
+    y_cr = get_Ycr(D0, rho_particule)
+    gammaS = get_gammS(rho_particule)
+
+    qsb = 0.
+    phi = 0.
+
+    slopeAdjustment = 0.0
+    if useSlopeAdjust == True:
+        slopeAdjustment = (y_cr / math.tan(math.pi * angleReposeDegrees / 180.0)) * slope
+
+    y_cr_modified = (y_cr + slopeAdjustment)
+
+    if y > y_cr_modified:
+        if type == 'bagnold':
+            phi = (0.5 * 8.5) * math.sqrt(y) * (y - y_cr_modified)
+        elif type == 'mpm':
+            phi = 8.0 * (y - y_cr_modified) ** 1.5
+        qsb = (math.sqrt(gammaS) * (D0 ** 1.5) / math.sqrt(rho)) * phi
+
+    return qsb * sign
+
 
 def get_unit_bed_load_slope(h,u,D0, slope, rho_particule, angleReposeDegrees = 30.0, type='mpm'):
     ''' Using Meyer-Peter and Muller but adjusted for the bed slope based on eq. 2.10 from my proposal'''
