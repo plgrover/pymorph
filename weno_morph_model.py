@@ -25,7 +25,7 @@ class NullMorphologicalModel(object):
 
     '''
     '''
-    def setup_model(self, bed_shear, z_init, xc, dx,useAvalanche = True, useSmoother = True):
+    def setup_model(self, bed_shear, z_init, xc, dx, useAvalanche = True, useSmoother = True, adjustment_angle=29.):
         self._z_init = z_init
         self._bed_shear = bed_shear
         self._xc = xc
@@ -33,6 +33,7 @@ class NullMorphologicalModel(object):
         self._dx = dx
         self._avalanche = useAvalanche
         self._smooth = useSmoother
+        self._adjustment_angle = adjustment_angle
 
     def set_sed_trans_model(self, model):
         self._type = model
@@ -122,10 +123,17 @@ class WenoMorphologicalModel(NullMorphologicalModel):
                 # Determine the Upwind flux
                 # The 0.5 comes from the c+abs(c) which is 2 if the wave speed is +ive
                 # this is the evaluation of the left and right based fluxes. Eq. 18 and 19
-                if (zlocal[3] - zlocal[2]) == 0.0:
-                    roe_speed[i] = np.sign((qlocal[3] - qlocal[2]))
-                else:
-                    roe_speed[i] = np.sign((qlocal[3] - qlocal[2]) / (zlocal[3] - zlocal[2]))
+                # Note this actually comes from the appendix in Long et al:
+                # "If ai + 1/2≥0, the flow is from left to right, and corresponding
+                # bedform phase speed is also from left to right. Otherwise, if
+                # ai + 1/2b0, the flow is from right to left. Since only the sign of
+                # ai+1/2 is needed, we can simply use sign((qi+1 − qi)(zbi+1 − zbi))
+                # to avoid division by a small number when (zbi +1−zbi) ap- proaches
+                # zero. Because WENO only requires the sign of the phase speed, it is
+                # much more stable than schemes that require accurate estimate of phase
+                # speed both in magnitude and sign."
+
+                roe_speed[i] = np.sign((qlocal[3] - qlocal[2]) * (zlocal[3] - zlocal[2]))
 
                 if roe_speed[i] >= 0.0:
                     flux[i] = weno.get_left_flux(qlocal)
@@ -148,7 +156,7 @@ class WenoMorphologicalModel(NullMorphologicalModel):
             # ------------------------------
             # Apply the avalanche model
             # ------------------------------
-            zc, iterations1 = avalanche_model(self._dx, self._xc, zc, adjustment_angle=20)
+            zc, iterations1 = avalanche_model(self._dx, self._xc, zc, adjustment_angle=self._adjustment_angle)
             # Now flip it to run in reverse
             zflip = np.flip(zc, axis=0)
             zflip, iterations1 = avalanche_model(self._dx, self._xc, zflip)
@@ -273,20 +281,29 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
                 # Determine the Upwind flux
                 # The 0.5 comes from the c+abs(c) which is 2 if the wave speed is +ive
                 # this is the evaluation of the left and right based fluxes. Eq. 18 and 19
-                if (zlocal[3] - zlocal[2]) == 0.0:
-                    roe_speed[i] = np.sign((qlocal[3] - qlocal[2]))
-                else:
-                    roe_speed[i] = np.sign((qlocal[3] - qlocal[2]) / (zlocal[3] - zlocal[2]))
+                # Note this actually comes from the appendix in Long et al:
+                # "If ai + 1/2≥0, the flow is from left to right, and corresponding
+                # bedform phase speed is also from left to right. Otherwise, if
+                # ai + 1/2b0, the flow is from right to left. Since only the sign of
+                # ai+1/2 is needed, we can simply use sign((qi+1 − qi)(zbi+1 − zbi))
+                # to avoid division by a small number when (zbi +1−zbi) ap- proaches
+                # zero. Because WENO only requires the sign of the phase speed, it is
+                # much more stable than schemes that require accurate estimate of phase
+                # speed both in magnitude and sign."
+
+                roe_speed[i] = np.sign((qlocal[3] - qlocal[2]) * (zlocal[3] - zlocal[2]))
 
                 if roe_speed[i] >= 0.0:
                     # flux[i] = weno.get_left_flux(qlocal)
                     qlocal = weno.get_stencil(qbedload,i-1,i+1)
                     flux[i] = qlocal[0] + 0.5*limiter[i] *(qlocal[1]-qlocal[0])
+                    # flux[i] = qlocal[0]
                 else:
                     # flux[i] = weno.get_right_flux(qlocal)
                     qlocal = weno.get_stencil(qbedload, i-1, i+2)
                     # flux[i] = qlocal[1]
                     flux[i] = qlocal[2] + 0.5 * limiter[i] * (qlocal[1] - qlocal[2])
+                    #flux[i] = qlocal[2]
 
 
             # ------------------------------
@@ -304,10 +321,10 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
             # Apply the avalanche model
             # ------------------------------
             if self._avalanche:
-                zc, iterations1 = avalanche_model(self._dx, self._xc, zc, adjustment_angle=29.)
+                zc, iterations1 = avalanche_model(self._dx, self._xc, zc, adjustment_angle=self._adjustment_angle)
                 # Now flip it to run in reverse
                 zflip = np.flip(zc, axis=0)
-                zflip, iterations1 = avalanche_model(self._dx, self._xc, zflip, adjustment_angle=29.)
+                zflip, iterations1 = avalanche_model(self._dx, self._xc, zflip, adjustment_angle=self._adjustment_angle)
                 zc = np.flip(zflip, axis=0)
 
             # ----------------------------------
@@ -330,13 +347,23 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
 
             for i in range(0, self._nx):
                 zlocal = weno.get_stencil(zc, i - 1, i + 2)
-                if bedShear[i]>0:
+
+
+                if bedShear[i] >= 0.0:
                     upSlope = zlocal[1] - zlocal[0]
                     dsSlope = zlocal[2] - zlocal[1]
-                    slopelimiter,r = getLimiter(upSlope, dsSlope)
-                    bedShear[i]= self._bed_shear[i] * slopelimiter
 
-                    print(i,r,slopelimiter, bedShear[i],self._bed_shear[i] )
+                    #bedShearLocal = weno.get_stencil(self._bed_shear, i - 1, i + 2)
+                    bedShearLocal = weno.get_stencil(bedShear, i - 1, i + 2)
+                    slopelimiter,r = getLimiter(upSlope, dsSlope)
+                    bedShear[i]= bedShearLocal[1] + 0.5* slopelimiter *(bedShearLocal[0] - bedShearLocal[1])
+                else:
+                    upSlope = zlocal[2] - zlocal[1]
+                    dsSlope = zlocal[1] - zlocal[0]
+                    slopelimiter, r = getLimiter(upSlope, dsSlope)
+                    #bedShear[i] = self._bed_shear[i] * slopelimiter
+
+                    # print(i,r,slopelimiter, bedShear[i],self._bed_shear[i] )
 
             # ------------------------------
             # Update the bed load
@@ -352,13 +379,20 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
             #qbedload = savgol_filter(qbedload, 25, 3)
         print(' Done')
         print(' ----------------------------')
-        return zc, qbedload, bed_slope, roe_speed
+        return zc, qbedload, bedShear, roe_speed
 
 def getLimiter(upSlope,dsSlope):
     r = dsSlope/(upSlope + 1.e-12)
     if r < 0.:
         r=0.
     phi = (r + abs(r)) / (1 + abs(r))
+
+    if phi > 2.:
+        phi = 2
+
+    if phi < 0.:
+        phi = 0
+
     return phi,r
 
 def is_number(s):
