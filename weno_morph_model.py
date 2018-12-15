@@ -345,25 +345,33 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
             else:
                 bed_slope = np.gradient(zc, self._dx)
 
-            for i in range(0, self._nx):
-                zlocal = weno.get_stencil(zc, i - 1, i + 2)
-
-
-                if bedShear[i] >= 0.0:
-                    upSlope = zlocal[1] - zlocal[0]
-                    dsSlope = zlocal[2] - zlocal[1]
-
-                    #bedShearLocal = weno.get_stencil(self._bed_shear, i - 1, i + 2)
+            '''
+            Slope limiter approach for modifying the bed shear stress profile.
+            '''
+            useSlopeLimiter = False
+            if useSlopeLimiter == True:
+                for i in range(0, self._nx):
+                    zlocal = weno.get_stencil(zc, i - 1, i + 2)
                     bedShearLocal = weno.get_stencil(bedShear, i - 1, i + 2)
-                    slopelimiter,r = getLimiter(upSlope, dsSlope)
-                    bedShear[i]= bedShearLocal[1] + 0.5* slopelimiter *(bedShearLocal[0] - bedShearLocal[1])
-                else:
-                    upSlope = zlocal[2] - zlocal[1]
-                    dsSlope = zlocal[1] - zlocal[0]
-                    slopelimiter, r = getLimiter(upSlope, dsSlope)
-                    #bedShear[i] = self._bed_shear[i] * slopelimiter
+
+                    if bedShear[i] >= 0.0:
+                        upSlope = zlocal[1] - zlocal[0]
+                        dsSlope = zlocal[2] - zlocal[1]
+
+                        #bedShearLocal = weno.get_stencil(self._bed_shear, i - 1, i + 2)
+
+                        slopelimiter,r = getLimiter(upSlope, dsSlope)
+                        bedShear[i]= bedShearLocal[1] + 0.5* slopelimiter *(bedShearLocal[0] - bedShearLocal[1])
+                    else:
+                        upSlope = zlocal[2] - zlocal[1]
+                        dsSlope = zlocal[1] - zlocal[0]
+                        slopelimiter, r = getLimiter(upSlope, dsSlope)
+                        bedShear[i] = bedShearLocal[1] + 0.5 * slopelimiter * (bedShearLocal[2] - bedShearLocal[1])
+
 
                     # print(i,r,slopelimiter, bedShear[i],self._bed_shear[i] )
+
+
 
             # ------------------------------
             # Update the bed load

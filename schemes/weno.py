@@ -14,7 +14,16 @@ http://scicomp.stackexchange.com/questions/20054/implementation-of-1d-advection-
 import numpy as np
 
 
+def get_r(z, i):
+    zlocal = get_stencil(z, i-1, i+2)
+    r = (zlocal[1] - zlocal[0])/(zlocal[2] - zlocal[1] + 1.e-6)
+    if r < 0.:
+        r=0.
+    return  r
 
+def van_leer(r):
+    phi = (r + abs(r)) / (1 + abs(r))
+    return  phi
 
 def get_phase_speed(porosity,a,b,u,h):
     '''
@@ -73,7 +82,7 @@ def get_exact_solution(zb_0,x_0, porosity,s,a,b,Q,dt):
 
 
 
-def get_stencil(ulist,start_index,end_index):
+def get_stencil(ulist: object, start_index: object, end_index: object) -> object:
     '''
     Method to get the stencil - implements a periodic BC
     '''
@@ -101,7 +110,7 @@ def get_left_flux(qloc):
     element will not be used in the calculation.
     '''
     
-    if len(qloc) <> 6:
+    if len(qloc) != 6:
         raise ValueError('Stencil is not 6')
     
     vareps= 1e-6
@@ -143,7 +152,7 @@ def get_right_flux(qloc):
     Note that qloc should be a stencil with 6 elements even though the first
     element will not be used in the calculation.
     '''
-    if len(qloc) <> 6:
+    if len(qloc) != 6:
         raise ValueError('Stencil is not 6')
     
     vareps= 1e-6
@@ -345,7 +354,6 @@ def WENO(xloc, uloc, k):
         beta[0] = (uloc[2]-uloc[1])**2
         beta[1] = (uloc[1]-uloc[0])**2
 
-
     if(k==3):
         # These are the parameters used in Eqs 26-28
         d[0] = 3/10. 
@@ -408,7 +416,7 @@ def WENO_original(xloc, uloc, k):
     omegar = zeros(k)
     beta = zeros(k)
     d = zeros(k)
-    vareps= 1e-6
+    vareps = 1e-6
 
     #Compute k values of xl and xr based on different stencils 
     ulr = zeros(k)

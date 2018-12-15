@@ -7,7 +7,7 @@ Does not work with negative bed elevations.
 import numpy as np
 import math
 from scipy.optimize import brentq,bisect,newton
-from weno import get_stencil 
+from schemes.weno import get_stencil
 
 def get_slope(dx,zloc):
     '''
@@ -15,7 +15,7 @@ def get_slope(dx,zloc):
     dx: delta x
     zloc: a list containing two values
     '''
-    if len(zloc)<>2:
+    if len(zloc)!=2:
         raise ValueError('The variable zloc must contain two values')
     
     dz = zloc[1]-zloc[0]
@@ -101,10 +101,10 @@ def adjust_bed(dx,xloc,zloc,del_area):
     '''
     Adjusts the elevation of the bed due to the avalanche.
     '''
-    if len(xloc)<>3:
+    if len(xloc)!=3:
         raise ValueError('The variable xloc must contain three values')
     
-    if len(zloc)<>3:
+    if len(zloc)!=3:
         raise ValueError('The variable zloc must contain three values')
     
      
@@ -199,10 +199,10 @@ def get_area(xloc,zloc):
     '''
     http://www.mathopenref.com/coordtrianglearea.html
     '''
-    if len(xloc)<>3:
+    if len(xloc)!=3:
         raise ValueError('The variable xloc must contain three values')
     
-    if len(zloc)<>3:
+    if len(zloc)!=3:
         raise ValueError('The variable zloc must contain three values')
     
     Ax = xloc[0]
