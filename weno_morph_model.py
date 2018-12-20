@@ -8,7 +8,8 @@ import sediment_transport.sed_trans as sedtrans
 from schemes.avalanche_scheme import avalanche_model, get_slope
 import numpy as np
 from scipy.signal import savgol_filter
-
+import scipy
+import scipy.ndimage as sciim
 
 class NullMorphologicalModel(object):
     """
@@ -34,6 +35,7 @@ class NullMorphologicalModel(object):
         self._avalanche = useAvalanche
         self._smooth = useSmoother
         self._adjustment_angle = adjustment_angle
+        self._bed_slope_t0 = np.gradient(z_init)
 
     def set_sed_trans_model(self, model):
         self._type = model
@@ -312,8 +314,6 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
             # ------------------------------
             for i in range(0, self._nx):  # i=2
                 floc = weno.get_stencil(flux, i - 1, i + 1)
-                zlocal = weno.get_stencil(zn, i - 1, i + 4)
-                #TODO Remove the comment below to make the bed evolve.
                 zc[i] = zn[i] - (1. / (1. - self._nP)) * (dt / self._dx) * (floc[1] - floc[0])
 
             bed_max_delta = np.max(np.abs(zn - zc))
@@ -349,11 +349,14 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
             '''
             Slope limiter approach for modifying the bed shear stress profile.
             '''
-            useSlopeLimiter = False
-            if useSlopeLimiter == True:
+            useShearShifter = True
+            if useShearShifter == True:
+                shift = self.calculate_mean_bedform_shift(self._z_init, zc)
+                print(shift)
+                shift = shift/self._dx
+                bedShear = sciim.interpolation.shift(self._bed_shear, shift, mode='wrap', order = 4)
 
-                bedShear = self.update_bed_shear(self._bed_shear, self._z_init, zc)
-                #bedShear = self.update_bed_shear(bedShear, zn, zc)
+
 
 
             # ------------------------------
@@ -372,47 +375,76 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
         print(' ----------------------------')
         return zc, qbedload, bedShear, roe_speed
 
+    ''' https: // en.wikipedia.org / wiki / Distance_from_a_point_to_a_line '''
+    '''
+         ax + by + c = 0
+    '''
+    def get_point_on_line(self, a, b, c, x0, y0):
+        x1 = (b*(b*x0 - a*y0)-a*c)/(a**2 + b**2)
+        y1 = (a*(-b*x0 + a*y0) - b*c)/(a**2 + b**2)
+        return x1, y1
+
+
+
+
+    def calculate_mean_bedform_shift(self, zn, znp):
+        translations = []
+        for i in range(0, self._nx):
+            StencilWidthBack = 5
+            StencilWidthForwards = 5
+            znlocal = weno.get_stencil(zn, i - StencilWidthBack, i + StencilWidthForwards)
+            znplocal = weno.get_stencil(znp, i - StencilWidthBack, i + StencilWidthForwards)
+            xlocal = weno.get_stencil(self._xc, i - StencilWidthBack, i + StencilWidthForwards)
+            xlocal = np.linspace(0., len(xlocal)*self._dx,len(xlocal))
+
+            # Check if monotinitcally increasing or decreasing
+            if (np.all(np.diff(znlocal) >= 0) and np.all(np.diff(znplocal) >=0)) or \
+                    (np.all(np.diff(znlocal) <= 0) and np.all(np.diff(znplocal) <= 0)):
+
+                resnp = scipy.stats.linregress(xlocal, znplocal)
+                c = resnp.intercept
+                a = resnp.slope
+                b = -1
+                x0 = xlocal[5]
+                y0 = znlocal[5]
+
+                x1,y1 = self.get_point_on_line(a, b, c, x0, y0)
+                deltaX = abs(x0-x1)
+                translations.append(deltaX)
+
+        translations = np.array(translations)
+        return  np.max(translations)
+
+
     def update_bed_shear(self, bedShear,z0, zc):
         for i in range(0, self._nx):
             # Calculate the change in the bed
             # A negative value means bed in going up, positive means erosion
-            dz = z0[i] - zc[i]
-
-            z0local = weno.get_stencil(z0,i-1, i+2)
-            zClocal = weno.get_stencil(zc, i-1, i+2)
-
-            # Compare against the historical grid
-            if zlocal[0] < zc[i]:
-                pass
-            elif zlocal[2] > zc[i]:
-                pass
 
 
+            PolyOrder = 2
+            StencilWidthBack = 5
+            StencilWidthForwards = 2
+            zlocal = weno.get_stencil(z0, i - StencilWidthBack, i + StencilWidthForwards)
+            bedShearLocal = weno.get_stencil(bedShear, i - StencilWidthBack, i + StencilWidthForwards)
+            xlocal = weno.get_stencil(self._xc, i - StencilWidthBack, i + StencilWidthForwards)
+            xRealative = np.linspace(0., len(xlocal)*self._dx,len(xlocal))
 
-                PolyOrder = 2
-                StencilWidthBack = 5
-                StencilWidthForwards = 2
-                zlocal = weno.get_stencil(z0, i - StencilWidthBack, i + StencilWidthForwards)
-                bedShearLocal = weno.get_stencil(bedShear, i - StencilWidthBack, i + StencilWidthForwards)
-                xlocal = weno.get_stencil(self._xc, i - StencilWidthBack, i + StencilWidthForwards)
 
+            try:
+                zpoly = np.polyfit(zlocal, xRealative, PolyOrder)
+                p = np.poly1d(zpoly)
+                xnew = p(zc[i])
 
-
-                xRealative = np.linspace(0., len(xlocal)*self._dx,len(xlocal))
-                try:
-                    zpoly = np.polyfit(zlocal, xRealative, PolyOrder)
-                    p = np.poly1d(zpoly)
-                    xnew = p(zc[i])
-
-                    if xnew > xRealative.max() or xnew < xRealative.min():
-                        print('Exceeded range.')
-                    else:
-                        tauPoly = np.polyfit(xRealative,bedShearLocal, PolyOrder)
-                        p = np.poly1d(tauPoly)
-                        bedShear[i] = p(xnew)
-                except:
-                    print('zlocal = {0}'.format(zlocal))
-                    print('xRealtive = {0}'.format(xRealative))
+                if xnew > xRealative.max() or xnew < xRealative.min():
+                    print('Exceeded range.')
+                else:
+                    tauPoly = np.polyfit(xRealative,bedShearLocal, PolyOrder)
+                    p = np.poly1d(tauPoly)
+                    bedShear[i] = p(xnew)
+            except:
+                print('zlocal = {0}'.format(zlocal))
+                print('xRealtive = {0}'.format(xRealative))
 
         return bedShear
 
@@ -497,3 +529,5 @@ def load_bed_shear_stress(bed_shear_stress_path):
                 retval.append(float(line))
 
     return np.array(retval)
+
+
