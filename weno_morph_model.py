@@ -313,6 +313,7 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
             for i in range(0, self._nx):  # i=2
                 floc = weno.get_stencil(flux, i - 1, i + 1)
                 zlocal = weno.get_stencil(zn, i - 1, i + 4)
+                #TODO Remove the comment below to make the bed evolve.
                 zc[i] = zn[i] - (1. / (1. - self._nP)) * (dt / self._dx) * (floc[1] - floc[0])
 
             bed_max_delta = np.max(np.abs(zn - zc))
@@ -350,27 +351,9 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
             '''
             useSlopeLimiter = False
             if useSlopeLimiter == True:
-                for i in range(0, self._nx):
-                    zlocal = weno.get_stencil(zc, i - 1, i + 2)
-                    bedShearLocal = weno.get_stencil(bedShear, i - 1, i + 2)
 
-                    if bedShear[i] >= 0.0:
-                        upSlope = zlocal[1] - zlocal[0]
-                        dsSlope = zlocal[2] - zlocal[1]
-
-                        #bedShearLocal = weno.get_stencil(self._bed_shear, i - 1, i + 2)
-
-                        slopelimiter,r = getLimiter(upSlope, dsSlope)
-                        bedShear[i]= bedShearLocal[1] + 0.5* slopelimiter *(bedShearLocal[0] - bedShearLocal[1])
-                    else:
-                        upSlope = zlocal[2] - zlocal[1]
-                        dsSlope = zlocal[1] - zlocal[0]
-                        slopelimiter, r = getLimiter(upSlope, dsSlope)
-                        bedShear[i] = bedShearLocal[1] + 0.5 * slopelimiter * (bedShearLocal[2] - bedShearLocal[1])
-
-
-                    # print(i,r,slopelimiter, bedShear[i],self._bed_shear[i] )
-
+                bedShear = self.update_bed_shear(self._bed_shear, self._z_init, zc)
+                #bedShear = self.update_bed_shear(bedShear, zn, zc)
 
 
             # ------------------------------
@@ -388,6 +371,71 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
         print(' Done')
         print(' ----------------------------')
         return zc, qbedload, bedShear, roe_speed
+
+    def update_bed_shear(self, bedShear,z0, zc):
+        for i in range(0, self._nx):
+            # Calculate the change in the bed
+            # A negative value means bed in going up, positive means erosion
+            dz = z0[i] - zc[i]
+
+            z0local = weno.get_stencil(z0,i-1, i+2)
+            zClocal = weno.get_stencil(zc, i-1, i+2)
+
+            # Compare against the historical grid
+            if zlocal[0] < zc[i]:
+                pass
+            elif zlocal[2] > zc[i]:
+                pass
+
+
+
+                PolyOrder = 2
+                StencilWidthBack = 5
+                StencilWidthForwards = 2
+                zlocal = weno.get_stencil(z0, i - StencilWidthBack, i + StencilWidthForwards)
+                bedShearLocal = weno.get_stencil(bedShear, i - StencilWidthBack, i + StencilWidthForwards)
+                xlocal = weno.get_stencil(self._xc, i - StencilWidthBack, i + StencilWidthForwards)
+
+
+
+                xRealative = np.linspace(0., len(xlocal)*self._dx,len(xlocal))
+                try:
+                    zpoly = np.polyfit(zlocal, xRealative, PolyOrder)
+                    p = np.poly1d(zpoly)
+                    xnew = p(zc[i])
+
+                    if xnew > xRealative.max() or xnew < xRealative.min():
+                        print('Exceeded range.')
+                    else:
+                        tauPoly = np.polyfit(xRealative,bedShearLocal, PolyOrder)
+                        p = np.poly1d(tauPoly)
+                        bedShear[i] = p(xnew)
+                except:
+                    print('zlocal = {0}'.format(zlocal))
+                    print('xRealtive = {0}'.format(xRealative))
+
+        return bedShear
+
+'''
+def oldBedShearStressUpdater():
+    for i in range(0, self._nx):
+        zlocal = weno.get_stencil(zc, i - 1, i + 2)
+        bedShearLocal = weno.get_stencil(bedShear, i - 1, i + 2)
+
+        if bedShear[i] >= 0.0:
+            upSlope = zlocal[1] - zlocal[0]
+            dsSlope = zlocal[2] - zlocal[1]
+
+            # bedShearLocal = weno.get_stencil(self._bed_shear, i - 1, i + 2)
+
+            slopelimiter, r = getLimiter(upSlope, dsSlope)
+            bedShear[i] = bedShearLocal[1] + 0.5 * slopelimiter * (bedShearLocal[0] - bedShearLocal[1])
+        else:
+            upSlope = zlocal[2] - zlocal[1]
+            dsSlope = zlocal[1] - zlocal[0]
+            slopelimiter, r = getLimiter(upSlope, dsSlope)
+       '''
+
 
 def getLimiter(upSlope,dsSlope):
     r = dsSlope/(upSlope + 1.e-12)
