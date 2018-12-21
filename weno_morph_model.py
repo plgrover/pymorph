@@ -1,8 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*
 
-import cython
-import os
+import math
 import schemes.weno as weno
 import sediment_transport.sed_trans as sedtrans
 from schemes.avalanche_scheme import avalanche_model, get_slope
@@ -200,7 +199,6 @@ class WenoMorphologicalModel(NullMorphologicalModel):
 class UpwindMorphologicalModel(NullMorphologicalModel):
 
 
-
     def run_model(self, simulationTime, z=None, dt=1, useSlopeAdjust=True):
 
         print(' Starting simulation....')
@@ -352,9 +350,9 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
             useShearShifter = True
             if useShearShifter == True:
                 shift = self.calculate_mean_bedform_shift(self._z_init, zc)
-                print(shift)
+                shift = np.max(shift)
                 shift = shift/self._dx
-                bedShear = sciim.interpolation.shift(self._bed_shear, shift, mode='wrap', order = 4)
+                bedShear = sciim.interpolation.shift(self._bed_shear, shift, mode='wrap', order = 2)
 
 
 
@@ -375,45 +373,62 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
         print(' ----------------------------')
         return zc, qbedload, bedShear, roe_speed
 
-    ''' https: // en.wikipedia.org / wiki / Distance_from_a_point_to_a_line '''
-    '''
+    ''' https: // en.wikipedia.org / wiki / Distance_from_a_point_to_a_line 
          ax + by + c = 0
+         -by = ax + c
     '''
     def get_point_on_line(self, a, b, c, x0, y0):
-        x1 = (b*(b*x0 - a*y0)-a*c)/(a**2 + b**2)
-        y1 = (a*(-b*x0 + a*y0) - b*c)/(a**2 + b**2)
-        return x1, y1
+        denominator = (a**2 + b**2)
+        x1 = (b*(b*x0 - a*y0) - a*c)/denominator
+        y1 = (a*(-b*x0 + a*y0) - b*c)/denominator
+        d = abs(a*x0 + b*y0 + c)/math.sqrt(denominator)
+        return x1, y1, d
 
 
 
 
     def calculate_mean_bedform_shift(self, zn, znp):
+        distance_tol = 1.e-6
+        slope_tol = 10.
+        StencilWidthBack = 4
+        StencilWidthForwards = 4
+
         translations = []
         for i in range(0, self._nx):
-            StencilWidthBack = 5
-            StencilWidthForwards = 5
+
             znlocal = weno.get_stencil(zn, i - StencilWidthBack, i + StencilWidthForwards)
             znplocal = weno.get_stencil(znp, i - StencilWidthBack, i + StencilWidthForwards)
             xlocal = weno.get_stencil(self._xc, i - StencilWidthBack, i + StencilWidthForwards)
             xlocal = np.linspace(0., len(xlocal)*self._dx,len(xlocal))
 
-            # Check if monotinitcally increasing or decreasing
-            if (np.all(np.diff(znlocal) >= 0) and np.all(np.diff(znplocal) >=0)) or \
-                    (np.all(np.diff(znlocal) <= 0) and np.all(np.diff(znplocal) <= 0)):
+            # looking for the front of the bed
+            # Check if monotinitcally decreasing
+            if (np.all(np.diff(znlocal) <= 0) and np.all(np.diff(znplocal) <= 0)):
 
                 resnp = scipy.stats.linregress(xlocal, znplocal)
-                c = resnp.intercept
                 a = resnp.slope
-                b = -1
-                x0 = xlocal[5]
-                y0 = znlocal[5]
 
-                x1,y1 = self.get_point_on_line(a, b, c, x0, y0)
-                deltaX = abs(x0-x1)
-                translations.append(deltaX)
+                # Calculate the angle of the slope
+                slope_angle_degrees = math.atan(abs(a)) * 57.2958
+                if slope_angle_degrees > slope_tol:
+
+                    c = resnp.intercept
+                    b = -1.
+                    x0 = xlocal[StencilWidthBack]
+                    y0 = znlocal[StencilWidthBack]
+
+                    x1, y1, d = self.get_point_on_line(a, b, c, x0, y0)
+
+                    if d > distance_tol:
+                        #print(x1, y1, d)
+                        deltaY = abs(y0 - y1)
+                        gamma = math.asin(deltaY/d)
+                        movement = d/math.cos(gamma)
+
+                        translations.append(movement)
 
         translations = np.array(translations)
-        return  np.max(translations)
+        return translations
 
 
     def update_bed_shear(self, bedShear,z0, zc):

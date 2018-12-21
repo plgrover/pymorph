@@ -2,8 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="ae4f9d78-019e-47bb-ad3a-96976afa1225" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/notebooks/Long et al - Gaussian Hump Test - Shallow Water.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/Long et al - Gaussian Hump Test - Shallow Water.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/notebooks/Paper_1/2018-11-30 Paper 1 experimentation.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/Paper_1/2018-11-30 Paper 1 experimentation.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/notebooks/Paper_1/2018-12-12 Paper 1 Dune Modelling.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/Paper_1/2018-12-12 Paper 1 Dune Modelling.ipynb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/weno_morph_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/weno_morph_model.py" afterDir="false" />
     </list>
@@ -18,8 +17,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/schemes/weno.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2266">
-              <caret line="103" selection-start-line="103" selection-end-line="103" />
+            <state relative-caret-position="-819">
+              <caret line="84" column="29" selection-start-line="84" selection-start-column="23" selection-end-line="84" selection-end-column="29" />
             </state>
           </provider>
         </entry>
@@ -32,11 +31,10 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/weno_morph_model.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="483">
-              <caret line="361" column="40" lean-forward="true" selection-start-line="361" selection-start-column="40" selection-end-line="361" selection-end-column="40" />
+            <state relative-caret-position="440">
+              <caret line="451" column="31" lean-forward="true" selection-start-line="451" selection-start-column="31" selection-end-line="451" selection-end-column="31" />
               <folding>
-                <element signature="e#47#60#0" expanded="true" />
-                <element signature="e#1179#7807#0" />
+                <element signature="e#48#59#0" expanded="true" />
               </folding>
             </state>
           </provider>
@@ -65,16 +63,16 @@
         <option value="C:/Data/INRS/Extract_LandCover.py" />
         <option value="C:/Data/INRS/Extract_Hydro_soil_group.py" />
         <option value="$PROJECT_DIR$/sediment_transport/sed_trans.py" />
-        <option value="$PROJECT_DIR$/schemes/weno.py" />
         <option value="$PROJECT_DIR$/notebooks/Long et al - Gaussian Hump Test - Shallow Water.ipynb" />
         <option value="$PROJECT_DIR$/schemes/bed_smoother.py" />
+        <option value="$PROJECT_DIR$/schemes/weno.py" />
         <option value="$PROJECT_DIR$/weno_morph_model.py" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds" extendedState="6">
-    <option name="x" value="-8" />
-    <option name="y" value="-8" />
+    <option name="x" value="1986" />
+    <option name="y" value="50" />
     <option name="width" value="1936" />
     <option name="height" value="1056" />
   </component>
@@ -173,9 +171,10 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="-8" y="-8" width="1936" height="1056" extended-state="6" />
+    <frame x="1912" y="-8" width="1936" height="1056" extended-state="6" />
+    <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.18123667" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.18283582" />
       <window_info id="Structure" order="1" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
@@ -336,23 +335,22 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/schemes/weno.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2266">
-          <caret line="103" selection-start-line="103" selection-end-line="103" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/schemes/flux_solvers.py">
       <provider selected="true" editor-type-id="text-editor" />
     </entry>
+    <entry file="file://$PROJECT_DIR$/schemes/weno.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-819">
+          <caret line="84" column="29" selection-start-line="84" selection-start-column="23" selection-end-line="84" selection-end-column="29" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/weno_morph_model.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="483">
-          <caret line="361" column="40" lean-forward="true" selection-start-line="361" selection-start-column="40" selection-end-line="361" selection-end-column="40" />
+        <state relative-caret-position="440">
+          <caret line="451" column="31" lean-forward="true" selection-start-line="451" selection-start-column="31" selection-end-line="451" selection-end-column="31" />
           <folding>
-            <element signature="e#47#60#0" expanded="true" />
-            <element signature="e#1179#7807#0" />
+            <element signature="e#48#59#0" expanded="true" />
           </folding>
         </state>
       </provider>
