@@ -350,9 +350,10 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
             useShearShifter = True
             if useShearShifter == True:
                 shift = self.calculate_mean_bedform_shift(self._z_init, zc)
+                #shift = 0.5 * (np.mean(shift) + np.max(shift))
                 shift = np.max(shift)
                 shift = shift/self._dx
-                bedShear = sciim.interpolation.shift(self._bed_shear, shift, mode='wrap', order = 2)
+                bedShear = sciim.interpolation.shift(self._bed_shear, shift, mode='wrap', order = 1)
 
 
 
