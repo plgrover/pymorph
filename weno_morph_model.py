@@ -6,8 +6,10 @@ import schemes.weno as weno
 import sediment_transport.sed_trans as sedtrans
 from schemes.avalanche_scheme import avalanche_model, get_slope
 import numpy as np
+import pandas as pd
 from scipy.signal import savgol_filter
 import scipy
+from scipy import optimize
 import scipy.ndimage as sciim
 
 class NullMorphologicalModel(object):
@@ -225,6 +227,26 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
         bed_slope = np.gradient(zc, self._dx)
         bedShear = self._bed_shear.copy()
 
+        df = pd.DataFrame(
+            {
+                'zbed': zc,
+                'tau': bedShear
+            })
+        dfclean = df[df.tau > 0.]
+
+        def test_func(x, a, b):
+            return a * np.log10(x) + b
+
+        print('Max Shear Stress:    {0}'.format(bedShear.max()))
+        params, params_covariance = optimize.curve_fit(test_func,
+                                                       dfclean.zbed.tolist(),
+                                                       dfclean.tau.tolist(),
+                                                       p0=[2., 2.])
+
+        for i in range(0, self._nx):
+            if bedShear[i] > 0.0:
+                bedShear[i] = test_func(zc[i], params[0], params[1])
+
         # --------------------------------
         # Initialize the sed transport
         # --------------------------------
@@ -256,6 +278,8 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
         # --------------------------------
         # Set up the model reporting parameters
         # --------------------------------
+
+
 
 
         # --------------------------------
@@ -349,13 +373,16 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
             '''
             useShearShifter = True
             if useShearShifter == True:
-                shift = self.calculate_mean_bedform_shift(self._z_init, zc)
+                #shift = self.calculate_mean_bedform_shift(self._z_init, zc)
                 #shift = 0.5 * (np.mean(shift) + np.max(shift))
-                shift = np.max(shift)
-                shift = shift/self._dx
-                bedShear = sciim.interpolation.shift(self._bed_shear, shift, mode='wrap', order = 1)
+                #shift = np.max(shift)
+                #shift = shift/self._dx
+                #bedShear = sciim.interpolation.shift(bedShear, shift, mode='wrap', order = 1)
 
-
+                #bedShear = test_func(zc, params[0],params[1])
+                for i in range(0, self._nx):
+                    if bedShear[i] > 0.0:
+                        bedShear[i] = test_func(zc[i], params[0], params[1])
 
 
             # ------------------------------
@@ -369,6 +396,8 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
                                                                  self._angleReposeDegrees,
                                                                  type=self._type,
                                                                  useSlopeAdjust=useSlopeAdjust)
+
+                qbedload = savgol_filter(qbedload, 11, 2)
             #qbedload = savgol_filter(qbedload, 25, 3)
         print(' Done')
         print(' ----------------------------')
@@ -384,8 +413,6 @@ class UpwindMorphologicalModel(NullMorphologicalModel):
         y1 = (a*(-b*x0 + a*y0) - b*c)/denominator
         d = abs(a*x0 + b*y0 + c)/math.sqrt(denominator)
         return x1, y1, d
-
-
 
 
     def calculate_mean_bedform_shift(self, zn, znp):
