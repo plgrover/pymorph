@@ -2,8 +2,8 @@
 import numpy as np
 import math
 from copy import copy, deepcopy
-from sed_trans import *
-from bc_utilities import *
+from sediment_transport import *
+from utils.bc_utilities import *
 
 class null_sed_transport_model(object):
     def __init__(self,rho_sediment, D50, sed_model='mpm', D90=0.0):
@@ -168,11 +168,11 @@ class non_equlibrium_sed_transport_model(equlibrium_sed_transport_model):
             self.Zbed[i] = Zbed_tmp[i] - 100.0*(dt/self.dx)*(1./(1-self.pm))*(1./self.L[i])*(self.Qb_star[i] - self.qbed[i])
             self.eta[i] = get_Y(h[i],U[i],self.D50, self.rho_sediment)/self.Ycr
 
-        print 'Max delta z %s ' % max(abs(self.Zbed_init - self.Zbed))
-        print 'Max Qbu %s ' % max(self.Qbu)
+        print ( 'Max delta z %s ' % max(abs(self.Zbed_init - self.Zbed)))
+        print ('Max Qbu %s ' % max(self.Qbu))
 
         self.update_boundary_conditions()
-        print 'Max delta z %s ' % max(abs(self.Zbed_init - self.Zbed))
+        print ('Max delta z %s ' % max(abs(self.Zbed_init - self.Zbed)))
         return Zbed
 
 class quasi_equlibrium_sed_transport_model(equlibrium_sed_transport_model):
@@ -233,7 +233,7 @@ class quasi_equlibrium_sed_transport_model(equlibrium_sed_transport_model):
         Zbed[0] = linear_extrapolation(Zbed[1],Zbed[2])
         Zbed[self.number_nodes-1] = linear_extrapolation(Zbed[self.number_nodes-2],Zbed[self.number_nodes-3])
 
-        print 'Max delta z %s ' % max(abs(self.Zbed_init - self.Zbed))
+        print ('Max delta z %s ' % max(abs(self.Zbed_init - self.Zbed)))
         return Zbed
 
     def update_boundary_conditions(self):

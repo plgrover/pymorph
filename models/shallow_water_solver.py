@@ -27,7 +27,7 @@ class shallow_solver():
         claw.num_output_times = 1  # Write 50 output frames
         
         solver = pyclaw.ClawSolver1D(riemann.shallow_1D_py.shallow_fwave_1d)
-        solver.limiters = pyclaw.limiters.weno.reconstruct
+        solver.limiters = pyclaw.limiters.tvd.vanleer
         solver.kernel_language = "Python"
         
         solver.step_source = source_term_here
@@ -53,6 +53,7 @@ class shallow_solver():
          # Gravitational constant
         state.problem_data['grav'] = 9.8
         state.problem_data['sea_level'] = s
+        state.problem_data['dry_tolerance'] = 1e-3
         #print(len(zb),len(state.aux[0, :]))
         state.aux[0, :] = zb
         
