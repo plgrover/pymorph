@@ -18,13 +18,13 @@ def morphmodel_2ndO_upwind(x,zb,depth,qf,timesteps,dt,use_slope_correction=True)
     A = 1.0
     u = qf/(z-zb)
 
-    print 'here 2'
+    print( 'here 2')
 
     # This is a simple sediment transport model
     sf = calculate_slope_factor(x,zb)
     qbs = (A * u) * sf
 
-    print 'Number of timesteps: %s' % timesteps
+    print('Number of timesteps: %s' % timesteps)
     for t in range(timesteps):
         zbn = copy.deepcopy(zb)
         for stage in range(2):
@@ -76,13 +76,11 @@ def morphmodel_upwind(x,zb,depth,qf,timesteps,dt,use_slope_correction=True):
     A = 1.0
     u = qf/(z-zb)
 
-    print 'here'
-
     # This is a simple sediment transport model
     sf = calculate_slope_factor(x,zb)
     qbs = (A * u) * sf
 
-    print 'Number of timesteps: %s' % timesteps
+    print('Number of timesteps: %s' % timesteps)
     for t in range(timesteps):
         zbn = copy.deepcopy(zb)
         for stage in range(2):
@@ -185,6 +183,8 @@ def calculate_slope_factor(x,zb,ang_repose=33.0):
             sf[i] = tan_ang_repose / ((tan_ang_repose-tan_slope) * cos_slope)
     return sf
 
+def cmp(a, b):
+    return (a > b) - (a < b)
 
 if __name__ == "__main__":
     import morph_geom_lib
@@ -207,12 +207,10 @@ if __name__ == "__main__":
     ax1.plot(x,zb0, label='initial bed')
 
     slope = calculate_bed_slope(x,zb)
-
     sf = calculate_slope_factor(x,zb)
 
     ax2 = fig.add_subplot(212)
     ax2.plot(x,slope,'r')
     ax2.plot(x,sf,'b')
     plt.show()
-
 

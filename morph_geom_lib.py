@@ -45,4 +45,4 @@ def flume_experiment(num_cells):
     
 if __name__ == "__main__":
     x,zb = single_hump(20., 201)
-    print zb
+    print(zb)

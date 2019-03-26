@@ -1,22 +1,15 @@
 from clawpack import pyclaw
 from clawpack import riemann
-
-
-
 import numpy as np
 import math
 from scipy.sparse.linalg.isolve._iterative import zbicgrevcom
 
 
-
-
 class shallow_solver(): 
 
-    
-    
-    def __init__(self,domain):
-        self.slope = 0.001
-        self.mannings = 0.032
+    def __init__(self,domain, slope=0.001, mannings=0.032):
+        self.slope = slope
+        self.mannings = mannings
         self.domain = domain
 
     
@@ -24,7 +17,7 @@ class shallow_solver():
         claw = pyclaw.Controller()
         claw.keep_copy = True       # Keep solution data in memory for plotting
         claw.output_format = None   # Don't write solution data to file
-        claw.num_output_times = 1  # Write 50 output frames
+        claw.num_output_times = 1   # Write 50 output frames
         
         solver = pyclaw.ClawSolver1D(riemann.shallow_1D_py.shallow_fwave_1d)
         solver.limiters = pyclaw.limiters.tvd.vanleer
@@ -54,7 +47,6 @@ class shallow_solver():
         state.problem_data['grav'] = 9.8
         state.problem_data['sea_level'] = s
         state.problem_data['dry_tolerance'] = 1e-3
-        #print(len(zb),len(state.aux[0, :]))
         state.aux[0, :] = zb
         
         # This is a flat surface
