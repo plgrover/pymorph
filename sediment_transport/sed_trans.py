@@ -69,9 +69,9 @@ def get_Y(h,u,D0, rho_particule):
     y = tau/(gammaS*D0)
     return y
 
-def get_Y(shear, D0, rho_particule):
+def get_Y(tau, D0, rho_particule):
     gammaS = get_gammS(rho_particule)
-    y = shear / (gammaS * D0)
+    y = tau / (gammaS * D0)
     return y
 
 #def get_unit_bed_load(h,u,D0,rho_particule,method='mpm'):
@@ -124,8 +124,8 @@ def get_unit_bed_load2(h,u,D0,rho_particule,type='mpm'):
     if u < 0:
         sign = -1
     u = abs(u)
-
-    y = get_Y(h,u,D0, rho_particule)
+    tau = get_bed_shear(h,u,D0)
+    y = get_Y(tau,D0, rho_particule)
     y_cr = get_Ycr(D0, rho_particule)
     gammaS = get_gammS(rho_particule)
 
