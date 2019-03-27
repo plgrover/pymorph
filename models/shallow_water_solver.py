@@ -7,7 +7,7 @@ from scipy.sparse.linalg.isolve._iterative import zbicgrevcom
 
 class shallow_solver(): 
 
-    def __init__(self,domain, slope=0.001, mannings=0.032):
+    def __init__(self,domain, slope=0.001, mannings=0.025):
         self.slope = slope
         self.mannings = mannings
         self.domain = domain
@@ -47,7 +47,9 @@ class shallow_solver():
         state.problem_data['grav'] = 9.8
         state.problem_data['sea_level'] = s
         state.problem_data['dry_tolerance'] = 1e-3
+        state.problem_data['mannings'] = self.mannings
         state.aux[0, :] = zb
+        
         
         # This is a flat surface
         state.q[0, :] = s - state.aux[0, :]
@@ -88,7 +90,7 @@ def source_term_here(solver,state,dt):
     #xc=grid.x.centers 
     # Get the flow depth
     # Now adjust the momentum term
-    n = 0.025
+    n = state.problem_data['mannings']
     Sf = (n**2)*q[1,:]*np.abs(q[1,:])/(q[0,:]**(10./3.))
     q[1,:] = q[1,:] + q[0,:]* state.problem_data['grav'] * (Slope-Sf) *dt
 
