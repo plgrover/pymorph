@@ -1,13 +1,38 @@
-from clawpack import pyclaw
+# from clawpack import pyclaw
+# Parallel version
+import clawpack.petclaw as pyclaw
+
 from clawpack import riemann
 import numpy as np
 import math
 from scipy.sparse.linalg.isolve._iterative import zbicgrevcom
+# http://www.clawpack.org/pyclaw/parallel.html
+
+def source_mannings(solver,state,dt):
+    """
+    Take a look at the paper on Hudson et al. 2005 regarding treatment of the source. 
+    
+    Note that I did run it for calm or quiesent conditions (i.e. u=0 for all t) and everything seemed okay.
+           | 0 |
+    S(Q) = |   |
+           |gh(Slope-Sf)|
+    """
+    #Eventually the slope should be calculate from the actual bed.
+    # Slope = 1.0/792.0
+    q = state.q
+    #grid = state.grid
+    #xc=grid.x.centers 
+    # Get the flow depth
+    # Now adjust the momentum term
+    n = state.problem_data['mannings']
+    Slope = state.problem_data['slope']
+    Sf = (n**2)*q[1,:]*np.abs(q[1,:])/(q[0,:]**(10./3.))
+    q[1,:] = q[1,:] + q[0,:]* state.problem_data['grav'] * (Slope-Sf) *dt
 
 
 class shallow_solver(): 
 
-    def __init__(self,domain, slope=0.001, mannings=0.025):
+    def __init__(self,domain, slope=0.001, mannings=0.025, source_term=source_mannings):
         self.slope = slope
         self.mannings = mannings
         self.domain = domain
@@ -23,7 +48,7 @@ class shallow_solver():
         solver.limiters = pyclaw.limiters.tvd.vanleer
         solver.kernel_language = "Python"
         
-        solver.step_source = source_term_here
+        solver.step_source = source_mannings
         solver.verbosity = 10
         
         solver.fwave = True
@@ -48,6 +73,8 @@ class shallow_solver():
         state.problem_data['sea_level'] = s
         state.problem_data['dry_tolerance'] = 1e-3
         state.problem_data['mannings'] = self.mannings
+        state.problem_data['slope'] = self.slope
+        state.problem_data['efix'] = False
         state.aux[0, :] = zb
         
         
@@ -74,23 +101,4 @@ class shallow_solver():
 
 
 
-def source_term_here(solver,state,dt):
-    """
-    Take a look at the paper on Hudson et al. 2005 regarding treatment of the source. 
-    
-    Note that I did run it for calm or quiesent conditions (i.e. u=0 for all t) and everything seemed okay.
-           | 0 |
-    S(Q) = |   |
-           |gh(Slope-Sf)|
-    """
-    #Eventually the slope should be calculate from the actual bed.
-    Slope = 1.0/792.0
-    q = state.q
-    #grid = state.grid
-    #xc=grid.x.centers 
-    # Get the flow depth
-    # Now adjust the momentum term
-    n = state.problem_data['mannings']
-    Sf = (n**2)*q[1,:]*np.abs(q[1,:])/(q[0,:]**(10./3.))
-    q[1,:] = q[1,:] + q[0,:]* state.problem_data['grav'] * (Slope-Sf) *dt
 

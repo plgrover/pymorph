@@ -1,6 +1,12 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*
 
+""" 
+    This module contains models used to run a morphological simulation 
+    using the output from the OpenFOAM runs for paper 1 and 3. These 
+    models are not coupled to a hydrodynamic model. 
+"""
+
 import math
 import schemes.weno as weno
 import sediment_transport.sed_trans as sedtrans
