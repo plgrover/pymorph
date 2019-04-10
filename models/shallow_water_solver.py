@@ -38,7 +38,7 @@ class shallow_solver():
         self.domain = domain
 
     
-    def run(self, zb,s):
+    def run(self, zb, sea_level, tfinal):
         claw = pyclaw.Controller()
         claw.keep_copy = True       # Keep solution data in memory for plotting
         claw.output_format = None   # Don't write solution data to file
@@ -70,7 +70,7 @@ class shallow_solver():
         
          # Gravitational constant
         state.problem_data['grav'] = 9.8
-        state.problem_data['sea_level'] = s
+        state.problem_data['sea_level'] = sea_level
         state.problem_data['dry_tolerance'] = 1e-3
         state.problem_data['mannings'] = self.mannings
         state.problem_data['slope'] = self.slope
@@ -79,12 +79,12 @@ class shallow_solver():
         
         
         # This is a flat surface
-        state.q[0, :] = s - state.aux[0, :]
+        state.q[0, :] = sea_level - state.aux[0, :]
         
         # Set the intial flow to 0.0 m/s
         state.q[1, :] = 0.0
         
-        claw.tfinal = 120.0
+        claw.tfinal = tfinal
         claw.solution = pyclaw.Solution(state, self.domain)
         claw.solver = solver
         claw.write_aux_init = True

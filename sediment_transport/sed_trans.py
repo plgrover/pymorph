@@ -142,7 +142,7 @@ def get_unit_bed_load2(h,u,D0,rho_particule,type='mpm'):
 
 
 def get_unit_bed_load_slope_shear(shear, D0, slope, rho_particule, angleReposeDegrees=30.0, type='bagnold', useSlopeAdjust=True):
-    ''' Using Meyer-Peter and Muller but adjusted for the bed slope based on eq. 2.10 from my proposal'''
+    ''' Using Meyer-Peter and Muller or Bagnold but adjusted for the bed slope based on eq. 2.10 from my proposal'''
     sign = 1
     if shear < 0:
         sign = -1
@@ -167,12 +167,15 @@ def get_unit_bed_load_slope_shear(shear, D0, slope, rho_particule, angleReposeDe
             phi = (0.5 * 8.5) * math.sqrt(y) * (y - y_cr_modified)
         elif type == 'mpm':
             phi = 8.0 * (y - y_cr_modified) ** 1.5
+        else:
+            raise ValueError('Wrong value for sediment transport provided.')
         qsb = (math.sqrt(gammaS) * (D0 ** 1.5) / math.sqrt(rho)) * phi
+        
 
     return qsb * sign
 
 
-def get_unit_bed_load_slope(h,u,D0, slope, rho_particule, angleReposeDegrees = 30.0, type='mpm'):
+def get_unit_bed_load_slope(h,u,D0, slope, rho_particule, angleReposeDegrees = 30.0, type='mpm', useSlopeAdjust=True):
     ''' Using Meyer-Peter and Muller but adjusted for the bed slope based on eq. 2.10 from my proposal'''
     sign = 1
     if u < 0:
@@ -180,6 +183,17 @@ def get_unit_bed_load_slope(h,u,D0, slope, rho_particule, angleReposeDegrees = 3
     u = abs(u)
 
     tau = get_bed_shear(h,u,D0)
+    
+    return get_unit_bed_load_slope_shear(tau, D0, slope, rho_particule, angleReposeDegrees, type, useSlopeAdjust)
+    
+    
+    
+    
+    
+    
+    
+    
+    
     y = get_Y(tau,D0, rho_particule)
     y_cr = get_Ycr(D0, rho_particule)
     gammaS = get_gammS(rho_particule)
@@ -189,6 +203,9 @@ def get_unit_bed_load_slope(h,u,D0, slope, rho_particule, angleReposeDegrees = 3
     slopeAdjustment = (y_cr / math.tan(math.pi * angleReposeDegrees / 180.0))*slope
     
     y_cr_modified = (y_cr+slopeAdjustment)
+    
+    if useSlopeAdjust==False:
+        y_cr_modified = y_cr
     
     if y > y_cr_modified:
         if type=='bagnold':        
