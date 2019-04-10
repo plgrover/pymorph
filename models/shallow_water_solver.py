@@ -45,6 +45,7 @@ class shallow_solver():
         claw.num_output_times = 1   # Write 50 output frames
         
         solver = pyclaw.ClawSolver1D(riemann.shallow_1D_py.shallow_fwave_1d)
+        #solver = pyclaw.ClawSolver1D(riemann.shallow_1D_py.shallow_roe_with_efix_1D)
         solver.limiters = pyclaw.limiters.tvd.vanleer
         solver.kernel_language = "Python"
         
