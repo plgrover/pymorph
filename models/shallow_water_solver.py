@@ -26,7 +26,12 @@ def source_mannings(solver,state,dt):
     # Now adjust the momentum term
     n = state.problem_data['mannings']
     Slope = state.problem_data['slope']
+    
+    Slope_bed = state.slope_bed
+    
     Sf = (n**2)*q[1,:]*np.abs(q[1,:])/(q[0,:]**(10./3.))
+    #q[1,:] = q[1,:] + q[0,:]* state.problem_data['grav'] * (Slope-Sf) *dt
+    #print(Slope_bed.mean(), Slope)
     q[1,:] = q[1,:] + q[0,:]* state.problem_data['grav'] * (Slope-Sf) *dt
 
 
@@ -77,7 +82,10 @@ class shallow_solver():
         state.problem_data['slope'] = self.slope
         state.problem_data['efix'] = False
         state.aux[0, :] = zb
+        xc = state.grid.x.centers
+        dx = state.grid.delta[0]
         
+        state.slope_bed = np.gradient(zb,xc)
         
         # This is a flat surface
         state.q[0, :] = sea_level - state.aux[0, :]
