@@ -1,8 +1,5 @@
-# from clawpack import pyclaw
-# Parallel version
-import clawpack.petclaw as pyclaw
-
 from clawpack import riemann
+import clawpack.petclaw as pyclaw
 import numpy as np
 import math
 from scipy.sparse.linalg.isolve._iterative import zbicgrevcom
@@ -27,7 +24,6 @@ def source_mannings(solver,state,dt):
     n = state.problem_data['mannings']
     Slope = state.problem_data['slope']
     
-    Slope_bed = state.slope_bed
     
     Sf = (n**2)*q[1,:]*np.abs(q[1,:])/(q[0,:]**(10./3.))
     #q[1,:] = q[1,:] + q[0,:]* state.problem_data['grav'] * (Slope-Sf) *dt
@@ -35,77 +31,139 @@ def source_mannings(solver,state,dt):
     q[1,:] = q[1,:] + q[0,:]* state.problem_data['grav'] * (Slope-Sf) *dt
 
 
-class shallow_solver(): 
-
-    def __init__(self,domain, slope=0.001, mannings=0.025, source_term=source_mannings):
-        self.slope = slope
-        self.mannings = mannings
-        self.domain = domain
-
+def source_chezy(solver,state,dt):
     
-    def run(self, zb, sea_level, tfinal):
-        claw = pyclaw.Controller()
-        claw.keep_copy = True       # Keep solution data in memory for plotting
-        claw.output_format = None   # Don't write solution data to file
-        claw.num_output_times = 1   # Write 50 output frames
+    kappa = 0.4
+    Bs = 8.5
+    b = 0.76
+    
+    Slope = state.problem_data['slope']
+    ks = state.problem_data['ks']
+    g = state.problem_data['grav']
+    q = state.q
+ 
+    cf = ((1./kappa)*np.log(0.368*q[0,:]/ks) + Bs)
+    R = b*q[0,:]/(b + 2*q[0,:])
+    n = R**(1/6.)/cf
+    
+    
+    Sf = (n**2)*q[1,:]*np.abs(q[1,:])/(q[0,:]**(10./3.))
+    q[1,:] = q[1,:] + q[0,:]*g*(Slope - Sf)*dt
+    
+class shallow_water_solver():
+    
+    def __init__(self, kernel_language='Fortran', solver_type='classic'):
         
-        solver = pyclaw.ClawSolver1D(riemann.shallow_1D_py.shallow_fwave_1d)
-        #solver = pyclaw.ClawSolver1D(riemann.shallow_1D_py.shallow_roe_with_efix_1D)
-        solver.limiters = pyclaw.limiters.tvd.vanleer
-        solver.kernel_language = "Python"
+        # ============================
+        # Select the solver
+        # ============================
+        if kernel_language == 'Fortran':
+            self.solver = pyclaw.ClawSolver1D(riemann.shallow_bathymetry_fwave_1D)
+            #self.solver.kernel_language = 'Fortran'
+        elif kernel_language == 'Python':
+            self.solver = pyclaw.ClawSolver1D(riemann.shallow_1D_py.shallow_fwave_1d)
+            self.solver.kernel_language = 'Python'
+            
+        self.state = None
+        self.controller = None
+        self.domain = None
         
-        solver.step_source = source_mannings
-        solver.verbosity = 10
+    def get_controller(self):
+        return self.controller
+    
+    def get_state(self):
+        return self.state
+            
+    def set_solver(self, limiter = pyclaw.limiters.tvd.vanleer, source_term=source_mannings, max_steps = 10000):
+        # ===============================
+        # Configure the solver
+        # ===============================
+        self.solver.limiters = pyclaw.limiters.tvd.vanleer
+        self.solver.fwave = True
+        self.solver.num_waves = 2
+        self.solver.num_eqn = 2        
+        self.solver.max_steps = max_steps
         
-        solver.fwave = True
-        solver.num_waves = 2
-        solver.num_eqn = 2
+    def set_state_domain(self,x,z):
+        # ============================
+        # Setup the domain and state
+        # ============================
+        x = pyclaw.Dimension(0.0,x.max(),len(x),name='x')
+        self.domain = pyclaw.Domain(x)
+        self.state = pyclaw.State(self.domain, 2, 1)
         
-        #solver.bc_lower[0] = pyclaw.BC.extrap
-        #solver.bc_upper[0] = pyclaw.BC.extrap
-        #solver.aux_bc_lower[0] = pyclaw.BC.extrap
-        #solver.aux_bc_upper[0] = pyclaw.BC.extrap
-        
-        solver.bc_lower[0] = pyclaw.BC.periodic
-        solver.bc_upper[0] = pyclaw.BC.periodic
-        solver.aux_bc_lower[0] = pyclaw.BC.periodic
-        solver.aux_bc_upper[0] = pyclaw.BC.periodic
-        
-        
-        state = pyclaw.State(self.domain, 2, 1)
-        
-         # Gravitational constant
-        state.problem_data['grav'] = 9.8
-        state.problem_data['sea_level'] = sea_level
-        state.problem_data['dry_tolerance'] = 1e-3
-        state.problem_data['mannings'] = self.mannings
-        state.problem_data['slope'] = self.slope
-        state.problem_data['efix'] = False
-        state.aux[0, :] = zb
-        xc = state.grid.x.centers
-        dx = state.grid.delta[0]
-        
-        state.slope_bed = np.gradient(zb,xc)
-        
-        # This is a flat surface
-        state.q[0, :] = sea_level - state.aux[0, :]
-        
-        # Set the intial flow to 0.0 m/s
-        state.q[1, :] = 0.0
-        
-        claw.tfinal = tfinal
-        claw.solution = pyclaw.Solution(state, self.domain)
-        claw.solver = solver
-        claw.write_aux_init = True
-        
-        status = claw.run()
-        
-        depth = claw.frames[claw.num_output_times].q[0,:]
-        velocity = claw.frames[claw.num_output_times].q[1,:]/depth
-        surface = depth +  state.aux[0, :]
+        xc = self.state.grid.x.centers
+        dx = self.state.grid.delta[0]
+        print('Grid dx = {0}'.format(dx))
+        print('Grid nx = {0}'.format(len(xc)))
         
         
-        return velocity, surface, depth
+        # Specify the bathymetry
+        self.state.aux[0, :] = z
+        
+        # Gravitational constant
+        self.state.problem_data['grav'] = 9.8
+        self.state.problem_data['dry_tolerance'] = 1.e-3
+        self.state.problem_data['sea_level'] = 0.0
+        
+    def set_mannings_source_term(self, mannings=0.022, slope=1/792.):        
+        self.solver.step_source = source_mannings
+        self.state.problem_data['mannings'] = mannings
+        self.state.problem_data['slope'] = slope
+        
+    def set_chezy_source_term(self, ks=0.0033, slope=1/792.):        
+        self.solver.step_source = source_chezy
+        self.state.problem_data['ks'] = ks
+        self.state.problem_data['slope'] = slope
+        
+        
+    def set_inital_conditions(self, surface, intial_flow):
+        # Set the starting water depth (h)
+        self.state.q[0, :] = surface - self.state.aux[0, :]
+        # Set the intial flow         
+        self.state.q[1, :] = intial_flow
+        
+    def set_conditions_from_previous(self, h, q):
+        # Set the starting water depth (h)
+        self.state.q[0, :] = h
+        # Set the intial flow         
+        self.state.q[1, :] = q
+        
+        
+    def set_boundary_conditions(self,
+                                bc_lower = pyclaw.BC.periodic,
+                                bc_upper = pyclaw.BC.periodic,
+                                aux_bc_lower = pyclaw.BC.periodic,
+                                aux_bc_upper = pyclaw.BC.periodic):
+        self.solver.bc_lower[0] = bc_lower
+        self.solver.bc_upper[0] = bc_upper
+        self.solver.aux_bc_lower[0] = aux_bc_lower
+        self.solver.aux_bc_upper[0] = aux_bc_upper
+        
+        
+    def set_controller(self, tfinal, num_output_times=1, 
+                       write_aux_init=True, keep_copy=True):
+        # ============================
+        # Setup the controller
+        # ============================
+        self.controller = pyclaw.Controller()
+        self.controller.keep_copy = keep_copy
+        self.controller.tfinal = tfinal
+        self.controller.solution = pyclaw.Solution(self.state, self.domain)
+        self.controller.solver = self.solver
+        self.controller.write_aux_init = write_aux_init
+        self.controller.num_output_times = num_output_times
+        
+        
+    def run(self):
+        status = None
+        if self.controller != None and self.state!=None:
+            status = self.controller.run()
+        else:
+            raise ValueError('Model is not parameterized...')
+        return status
+    
+
 
 
 
