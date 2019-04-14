@@ -73,6 +73,16 @@ class shallow_water_solver():
     
     def get_state(self):
         return self.state
+    
+    def get_hf(self):
+        return self.controller.frames[self.controller.num_output_times].q[0,:]
+        
+    def get_qf(self):
+        return self.controller.frames[self.controller.num_output_times].q[1,:]
+    
+    def get_uf(self):
+        depth = self.controller.frames[self.controller.num_output_times].q[0,:]
+        return self.controller.frames[self.controller.num_output_times].q[1,:]/depth
             
     def set_solver(self, limiter = pyclaw.limiters.tvd.vanleer, source_term=source_mannings, max_steps = 10000):
         # ===============================
@@ -94,8 +104,8 @@ class shallow_water_solver():
         
         xc = self.state.grid.x.centers
         dx = self.state.grid.delta[0]
-        print('Grid dx = {0}'.format(dx))
-        print('Grid nx = {0}'.format(len(xc)))
+        #print('Grid dx = {0}'.format(dx))
+        #print('Grid nx = {0}'.format(len(xc)))
         
         
         # Specify the bathymetry
