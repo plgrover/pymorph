@@ -5,6 +5,19 @@ import math
 from scipy.sparse.linalg.isolve._iterative import zbicgrevcom
 # http://www.clawpack.org/pyclaw/parallel.html
 
+
+def inlet_BC(state,dim,t,qbc,auxbc,num_ghost):
+    qIn = state.problem_data['lower_bc_data']
+    qbc[0, :num_ghost:] = qbc[0, num_ghost]
+    qbc[1,:num_ghost] = qIn
+    
+    
+def outlet_BC(state,dim,t,qbc,auxbc,num_ghost):
+    hOut = state.problem_data['upper_bc_data']
+    qbc[0,-num_ghost:] = hOut
+    qbc[1, -num_ghost:] = qbc[1, -num_ghost - 1]
+
+
 def source_mannings(solver,state,dt):
     """
     Take a look at the paper on Hudson et al. 2005 regarding treatment of the source. 
@@ -149,6 +162,23 @@ class shallow_water_solver():
         self.solver.bc_upper[0] = bc_upper
         self.solver.aux_bc_lower[0] = aux_bc_lower
         self.solver.aux_bc_upper[0] = aux_bc_upper
+        
+        
+    def set_Dirichlet_BC(self, hOut, qIn):
+        
+        self.solver.bc_lower[0] = pyclaw.BC.custom
+        self.solver.bc_upper[0] = pyclaw.BC.custom
+        
+        self.solver.aux_bc_lower[0] = pyclaw.BC.extrap
+        self.solver.aux_bc_upper[0] = pyclaw.BC.extrap
+        
+        self.state.problem_data['lower_bc_data'] = qIn
+        self.state.problem_data['upper_bc_data'] = hOut
+
+        self.solver.user_bc_lower = inlet_BC
+        self.solver.user_bc_upper = outlet_BC
+
+        
         
         
     def set_controller(self, tfinal, num_output_times=1, 
