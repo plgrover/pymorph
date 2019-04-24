@@ -6,6 +6,9 @@ from scipy.sparse.linalg.isolve._iterative import zbicgrevcom
 # http://www.clawpack.org/pyclaw/parallel.html
 
 
+# http://www.clawpack.org/bc.html
+# https://groups.google.com/forum/#!searchin/claw-users/dirichlet%7Csort:date/claw-users/dg7SzX6keqM/1nanvItqBwAJ
+    
 def inlet_BC(state,dim,t,qbc,auxbc,num_ghost):
     qIn = state.problem_data['lower_bc_data']
     qbc[0, :num_ghost:] = qbc[0, num_ghost]
@@ -16,6 +19,20 @@ def outlet_BC(state,dim,t,qbc,auxbc,num_ghost):
     hOut = state.problem_data['upper_bc_data']
     qbc[0,-num_ghost:] = hOut
     qbc[1, -num_ghost:] = qbc[1, -num_ghost - 1]
+    
+# http://www.clawpack.org/riemann_book/html/Kitchen_sink_problem.html
+def inner_state(state,dim,t,qbc,auxbc,num_ghost):
+    h =  state.problem_data['lower_bc_data'][0]
+    q =  state.problem_data['lower_bc_data'][1]
+    qbc[0,:num_ghost] = h
+    qbc[1,:num_ghost] = q
+    
+def outer_state(state,dim,t,qbc,auxbc,num_ghost):
+    h =  state.problem_data['upper_bc_data'][0]
+    q =  state.problem_data['upper_bc_data'][1]
+    qbc[0,-num_ghost:] = h
+    qbc[1,-num_ghost:] = q
+    
 
 
 def source_mannings(solver,state,dt):

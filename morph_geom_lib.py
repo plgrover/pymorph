@@ -1,7 +1,9 @@
 ''' This is a library of differnet geometries that can be used for the modelling '''
+import os
 import csv
 import copy
 import numpy as np
+import pandas as pd
 import math
 from scipy.interpolate import interp1d
 
@@ -43,6 +45,85 @@ def flume_experiment(num_cells):
     
     return x,zb
     
+    
+# ------------------------
+
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+    
+
+'''
+Reads a single file from the experimental data from Wiebe
+'''
+def readWiebeFile(filepath, resolution = 0.5):
+    xs = []
+    zs = []
+    with open(filepath) as f:
+        for line in f:
+            values = line.split(',')
+            if is_number(values[0]) and is_number(values[1]):
+                x = float(values[0])/100.
+                z = float(values[1])/100.
+                xs.append(x)
+                zs.append(z)
+                
+    xs = np.array(xs)
+    zs = np.array(zs)
+    
+    #--------------------------------
+    # Increase the resolution on the grid
+    #--------------------------------
+    xmax = 12.0 #xs.max()
+    nx = len(xs)
+    f = interp1d(xs, zs)
+    
+    xnew = np.linspace(0., xmax, num=800)
+    znew = f(xnew)
+    return xnew, znew
+
+'''
+Reads multiple files from the experimental data from Wiebe
+
+Returns a dataframe with the profiles
+'''
+def readWiebeFiles(profile_folder, resolution = 0.5):
+    
+    profile_times = [-15, -2, 1, 4, 10, 16, 23, 30, 39, 48, 56, 67, 77, 88, 97, 108, 118, 128, 139, 149, 160, 170, 180, 190, 200, 211, 222, 233, 244, 255, 266, 277, 289, 300, 301]
+    
+    xprofile = None
+    zdict = {}
+
+    for filename in os.listdir(profile_folder):
+        name = filename.split('.')[0]
+        profile = None
+        if len(name)==10:
+            profile = '0{0}'.format(name[-1:])
+        else:
+            profile = name[-2:]
+
+        x, z = readWiebeFile(os.path.join(profile_folder,filename), resolution=0.25)
+        
+        xprofile = x
+        zdict[profile_times[int(profile)]] = z
+    
+    
+    profileDf = pd.DataFrame(zdict)
+    profileDf.index = xprofile
+
+    profileDf = profileDf.reindex(sorted(profileDf.columns), axis=1)
+    
+    return profileDf
+    
+    
+    
+    
 if __name__ == "__main__":
     x,zb = single_hump(20., 201)
     print(zb)
+
+    
+    
