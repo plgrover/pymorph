@@ -80,7 +80,19 @@ def get_exact_solution(zb_0,x_0, porosity,s,a,b,Q,dt):
     
     return np.array(x),np.array(zb)
 
-
+def get_Max_Phase_Speed(qbedload,z,nP):
+    nx = len(z)
+    Cs = np.zeros(nx)
+    for i in range(0,nx): #i=2       
+        qloc = get_stencil(qbedload,i-1,i+2)  
+        zloc = get_stencil(z,i-1,i+2) 
+        dq = (qloc[2] - qloc[0])
+        dz = (zloc[2] - zloc[0])
+        
+        if dz != 0.:
+            Cs[i] = dq/((1-nP)*dz)
+    return Cs.max()
+        
 
 def get_stencil(ulist: object, start_index: object, end_index: object) -> object:
     '''

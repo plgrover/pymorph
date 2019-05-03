@@ -73,11 +73,10 @@ def source_chezy(solver,state,dt):
     q = state.q
  
     cf = ((1./kappa)*np.log(0.368*q[0,:]/ks) + Bs)
-    R = b*q[0,:]/(b + 2*q[0,:])
-    n = R**(1/6.)/cf
+    Cf = cf*math.sqrt(g)
     
     
-    Sf = (n**2)*q[1,:]*np.abs(q[1,:])/(q[0,:]**(10./3.))
+    Sf = q[1,:]*np.abs(q[1,:])/(g*Cf*q[0,:]**(3.))
     q[1,:] = q[1,:] + q[0,:]*g*(Slope - Sf)*dt
     
 class shallow_water_solver():
@@ -179,6 +178,9 @@ class shallow_water_solver():
         self.solver.bc_upper[0] = bc_upper
         self.solver.aux_bc_lower[0] = aux_bc_lower
         self.solver.aux_bc_upper[0] = aux_bc_upper
+        
+        self.state.problem_data['lower_bc_data'] = 0
+        self.state.problem_data['upper_bc_data'] = 0
         
         
     def set_Dirichlet_BC(self, hOut, qIn):

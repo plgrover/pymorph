@@ -5,6 +5,7 @@ import copy
 import numpy as np
 import pandas as pd
 import math
+import collections
 from scipy.interpolate import interp1d
 
 def single_hump(length, number_nodes):
@@ -44,6 +45,38 @@ def flume_experiment(num_cells):
     zb = copy.deepcopy(zbnew)
     
     return x,zb
+    
+    
+    
+   
+def readQueensFlume(filepath, resolution=1):
+    retval = collections.OrderedDict()
+    z = []
+    with open(filepath) as f:
+        for line in f:
+            values = line.split()
+            if is_number(values[0])==False:
+                if float(values[1]).is_integer():
+                    retval[values[0]]=int(values[1])
+                else:
+                    retval[values[0]]=float(values[1])
+            else:
+                z.append(float(values[0]))
+    z = np.array(z)
+    print('Z: {0}'.format(len(z)))
+    xmax = float(retval['nrows']) * retval['cellsize']
+    nx = retval['nrows']
+    dx = retval['cellsize']
+    #--------------------------------
+    # Increase the resolution on the grid
+    #--------------------------------
+    x = np.linspace(0, nx*dx, num=len(z))
+    f = interp1d(x, z)
+    xnew = np.linspace(0, nx*dx, num=len(z)*resolution)
+    znew = f(xnew)
+    nx = len(xnew)
+
+    return xnew,znew
     
     
 # ------------------------
