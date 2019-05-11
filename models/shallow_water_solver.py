@@ -16,7 +16,9 @@ def inlet_BC(state,dim,t,qbc,auxbc,num_ghost):
     
     
 def outlet_BC(state,dim,t,qbc,auxbc,num_ghost):
-    hOut = state.problem_data['upper_bc_data']
+    sOut = state.problem_data['upper_bc_data']
+    n = len(state.grid.x.centers)
+    hOut = sOut - state.aux[0, n-1]
     qbc[0,-num_ghost:] = hOut
     qbc[1, -num_ghost:] = qbc[1, -num_ghost - 1]
     
@@ -183,7 +185,7 @@ class shallow_water_solver():
         self.state.problem_data['upper_bc_data'] = 0
         
         
-    def set_Dirichlet_BC(self, hOut, qIn):
+    def set_Dirichlet_BC(self, sOut, qIn):
         
         self.solver.bc_lower[0] = pyclaw.BC.custom
         self.solver.bc_upper[0] = pyclaw.BC.custom
@@ -192,7 +194,7 @@ class shallow_water_solver():
         self.solver.aux_bc_upper[0] = pyclaw.BC.extrap
         
         self.state.problem_data['lower_bc_data'] = qIn
-        self.state.problem_data['upper_bc_data'] = hOut
+        self.state.problem_data['upper_bc_data'] = sOut
 
         self.solver.user_bc_lower = inlet_BC
         self.solver.user_bc_upper = outlet_BC

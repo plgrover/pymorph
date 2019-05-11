@@ -9,6 +9,7 @@ import math
 import schemes.weno as weno
 import sediment_transport.sed_trans as sedtrans
 from schemes.avalanche_scheme import avalanche_model, get_slope
+from models.shallow_water_solver import shallow_water_solver
 import numpy as np
 from scipy.signal import savgol_filter
 import scipy
@@ -23,16 +24,29 @@ class NullMorphologicalModel(object):
     """
 
     def __init__(self, D50, rho_particule = 2650., angleReposeDegrees = 30., nP=0.4):
+        self._type = 'bagnold'
+        self._avalanche = False
+
+        
+    def setup_bed_properties(self, D50, repose_angle = 30., rho_particle = 2650., nP = 0.4):
         self._D50 = D50
         self._rho_particule = rho_particule
-        self._angleReposeDegrees = angleReposeDegrees
+        self._angleReposeDegrees = repose_angle
         self._nP=nP
-        self._type = 'bagnold'
-
-
+            
+    def setup_avalanche_model(self, threshold_angle, repose_angle, adjustment_angle):
+        self._avalanche = True
+        self._threshold_angle = threshold_angle
+        self._adjustment_angle = adjustment_angle
+        
+    def intial_flow_conditions(self, qin, sOut):
+        self.qin = qin
+        self.sOut = sOut
+        
+        
     '''
     '''
-    def setup_model(self, bed_shear, z_init, xc, dx, useAvalanche = True, useSmoother = True, adjustment_angle=29.):
+    def setup_model(self, xc, zc, , useAvalanche = True, useSmoother = True, adjustment_angle=29.):
         self._z_init = z_init
         self._bed_shear = bed_shear
         self._xc = xc
@@ -49,6 +63,10 @@ class NullMorphologicalModel(object):
     def run_model(self, simulationTime, dt = 1):
         pass
 
+    
+    
+    
+    
 
 
 class WenoMorphologicalModel(NullMorphologicalModel):

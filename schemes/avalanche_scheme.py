@@ -49,7 +49,7 @@ def avalanche_model(dx,xc,z,max_iterations = 100,threshold_angle=30.5,angle_of_r
                 zloc = get_stencil(z_current,i,i+2)
                 slope =get_slope(dx, zloc)
                 
-                factor = 0.1
+                factor = 0.4
                 check_adjustment = True
                 if slope < angle_of_repose*-1.0:
                     #print('Checking slope for i={0} slope={1}'.format(i,slope))
@@ -100,19 +100,13 @@ def adjustment_to_target(dx,zloc, angle_of_repose = 29.5):
 def adjust_bed(dx,xloc,zloc,del_area):
     '''
     Adjusts the elevation of the bed due to the avalanche.
-    '''
-    if len(xloc)!=3:
-        raise ValueError('The variable xloc must contain three values')
-    
-    if len(zloc)!=3:
-        raise ValueError('The variable zloc must contain three values')
-    
+    '''    
      
     current_area = get_area_polygon(dx,zloc)
     
     target_area = current_area + del_area
     
-    z_new = bisect(f,-1.0,100.,args=(dx,zloc,target_area))
+    z_new = bisect(f,-1.0,1.,args=(dx,zloc,target_area))
     
     return z_new
     
