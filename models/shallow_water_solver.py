@@ -68,7 +68,6 @@ def source_chezy(solver,state,dt):
     kappa = 0.4
     Bs = 8.5
     b = 0.76
-    
     Slope = state.problem_data['slope']
     ks = state.problem_data['ks']
     g = state.problem_data['grav']
@@ -157,6 +156,9 @@ class shallow_water_solver():
         self.solver.step_source = source_chezy
         self.state.problem_data['ks'] = ks
         self.state.problem_data['slope'] = slope
+        self.state.problem_data['mannings'] = 0.024
+        self.state.problem_data['slope'] = slope
+        
         
         
     def set_inital_conditions(self, surface, intial_flow):

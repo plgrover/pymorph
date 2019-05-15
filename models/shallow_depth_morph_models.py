@@ -11,6 +11,7 @@ import sediment_transport.sed_trans as sedtrans
 from schemes.avalanche_scheme import avalanche_model, get_slope
 from models.shallow_water_solver import shallow_water_solver
 import numpy as np
+import pandas as pd
 from scipy.signal import savgol_filter
 import scipy
 import scipy.ndimage as sciim
@@ -90,7 +91,7 @@ class TVD2ndWenoModel(NullExnerModel):
             z1[i] = z[i]-(1./(1.-baseModel._nP))*dt/baseModel._dx*(floc[1] - floc[0])
             
         # Now update hydraulics using z1, and update the bedload
-        h1, u1, q1 = baseModel._update_hydrodynamic_model(baseModel._h, baseModel._q, baseModel._xc, z)
+        h1, u1, q1 = baseModel._update_hydrodynamic_model(baseModel._h, baseModel._q, baseModel._xc, z, baseModel._update_time)
         slope1 = np.gradient(z1)
         qbedload1 = baseModel._calculate_bedload(h1, u1, slope1)
         
@@ -139,7 +140,8 @@ class NullShallowHydroMorphologicalModel(object):
         self._h = None
         self._q = None
         self._u = None
-
+        self._mannings = None
+        self._ks = None
         
     def setup_bed_properties(self, D50, repose_angle = 30., rho_particle = 2650., nP = 0.4):
         self._D50 = D50
@@ -169,6 +171,8 @@ class NullShallowHydroMorphologicalModel(object):
         peaks, _ = find_peaks(zc, height=0.02)
         self._peak1 = peaks[0]
         self._wave_speed = {}
+        self._wave_length = {}
+        self._wave_height = {}
 
     def setup_morpho_model(self, exner_model, 
                            useAvalanche = True, 
@@ -182,10 +186,17 @@ class NullShallowHydroMorphologicalModel(object):
         self._useSlopeAdjust = useSlopeAdjust
         self._exner_model = exner_model
         
-    def setup_hydro_model(self, mannings, bed_slope):
+    def setup_mannings_hydro_model(self, mannings, bed_slope):
         self._mannings = mannings
         self._bed_slope = bed_slope
         self._sws = None
+        self._update_time = 10
+        
+    def setup_chezy_hydro_model(self, ks, bed_slope):
+        self._ks = ks
+        self._bed_slope = bed_slope
+        self._sws = None
+        self._update_time = 10
         
     def _init_hydrodynamic_model(self, tfinal=300., max_steps=100000):
         #--------------------------------
@@ -194,7 +205,13 @@ class NullShallowHydroMorphologicalModel(object):
         self._sws = shallow_water_solver(kernel_language='Fortran')
         self._sws.set_solver(max_steps=max_steps)
         self._sws.set_state_domain(self._xc, self._zc)
-        self._sws.set_mannings_source_term(mannings=self._mannings, slope=self._bed_slope)
+        
+        if self._mannings == None:
+            self._sws.set_chezy_source_term(ks = self._ks, slope = self._bed_slope)
+        else:
+            self._sws.set_mannings_source_term(mannings=self._mannings, slope=self._bed_slope)
+        
+        
         self._sws.set_Dirichlet_BC(self._sOut, self._qin)
         self._sws.set_inital_conditions(self._sOut, 0.0)
         self._sws.set_controller(tfinal = tfinal, num_output_times=1)
@@ -229,7 +246,10 @@ class NullShallowHydroMorphologicalModel(object):
         self._sws = shallow_water_solver(kernel_language='Fortran')
         self._sws.set_solver(max_steps=max_steps)
         self._sws.set_state_domain(x, z)
-        self._sws.set_mannings_source_term(mannings=self._mannings, slope=self._bed_slope)
+        if self._mannings == None:
+            self._sws.set_chezy_source_term(ks = self._ks, slope = self._bed_slope)
+        else:
+            self._sws.set_mannings_source_term(mannings=self._mannings, slope=self._bed_slope)
         self._sws.set_Dirichlet_BC(self._sOut, self._qin)
         self._sws.set_conditions_from_previous(h, q)
         self._sws.set_controller(tfinal = tfinal, num_output_times = 1)
@@ -240,12 +260,39 @@ class NullShallowHydroMorphologicalModel(object):
         q = self._sws.get_qf()
 
         return h, u, q
+    
+    def _calculate_wave_height(self, z, timestep):
+        top_peaks, _ = find_peaks(z, height = 0.02)
+        bottom_peaks, _ = find_peaks(-1.*z, height = -0.02)
         
+        ztop = [z[i] for i in top_peaks]
+        zbottom = [z[i] for i in bottom_peaks]
         
+        ztop = np.array(ztop)
+        zbottom = np.array(zbottom)
+        
+        self._wave_height[timestep] = ztop.mean() - zbottom.mean()
+                
+            
+    
+    def _calculate_wave_length(self, z, timestep):
+        peaks, _ = find_peaks(-1.*z, height = -0.02)
+        lengths = []
+        last_peak = None
+        for peak in peaks:
+            if last_peak == None:
+                last_peak = peak
+            else:
+                lengths.append(self._dx * (peak-last_peak))
+                
+        lengths = np.array(lengths)
+        self._wave_length[timestep] = lengths.mean()
+    
     def _calculate_wave_speed(self, z, timestep):
-        peaks, _ = find_peaks(z, height=0.02)
+        # Note that we are picking off the bttom part 
+        # of the dune.
+        peaks, _ = find_peaks(-1.*z, height = -0.02)
         peak_new = None
-        print(peaks)
         for peak in peaks:
             if peak > self._peak1:
                 peak_new = peak
@@ -282,7 +329,6 @@ class NullShallowHydroMorphologicalModel(object):
                                           adjustment_angle = self._adjustment_angle)
         
         znew = np.flip(zflip, axis = 0)
-        print('Avalanching!')
         return znew
     
     
@@ -303,7 +349,16 @@ class NullShallowHydroMorphologicalModel(object):
     def run(self, simulationTime, dt, extractionTime, fileName):
         pass
 
+    def get_wave_dataframe(self):
+        wavehdf = pd.DataFrame.from_dict(self._wave_height, orient='index',columns=['height'])
 
+        waveldf = pd.DataFrame.from_dict(self._wave_length, orient='index',columns=['length'])
+
+        wavesdf = pd.DataFrame.from_dict(self._wave_speed, orient='index',columns=['speed'])
+
+        waveDf = pd.concat([wavehdf, waveldf, wavesdf], axis=1)
+        
+        return waveDf
 
 class ShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel):
 
@@ -378,7 +433,7 @@ class ShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel):
             
             if cntr > -1:
                 h, u, q = self._update_hydrodynamic_model(h, q, 
-                                                      self._xc, znp1, tfinal=15.)
+                                                      self._xc, znp1, tfinal=self._update_time)
                 self._h  = h
                 self._u = u
                 self._q = q
@@ -398,6 +453,8 @@ class ShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel):
                 timestep = n*dt
                 self._extract_results(self._xc, self._zc, u, q, h, qbedload, timestep, dt, fileName)              
                 self._calculate_wave_speed(self._zc, timestep)
+                self._calculate_wave_length(self._zc, timestep)
+                self._calculate_wave_height(self._zc, timestep)
         return self._zc, u, q, h, qbedload
             
             
