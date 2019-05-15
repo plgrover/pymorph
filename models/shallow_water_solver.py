@@ -73,12 +73,13 @@ def source_chezy(solver,state,dt):
     ks = state.problem_data['ks']
     g = state.problem_data['grav']
     q = state.q
- 
-    cf = ((1./kappa)*np.log(0.368*q[0,:]/ks) + Bs)
-    Cf = cf*math.sqrt(g)
+     
+    # From eq. 1.14 in Yalin and da Silva
+    cf = ((1./kappa)*np.log(0.368*q[0,:]/ks) + Bs)   
     
+    # Based on eq. 1.16 and solving for S. (mulitply by h first)
+    Sf = q[1,:]*np.abs(q[1,:])/(g*(cf**2.)*q[0,:]**(3.))
     
-    Sf = q[1,:]*np.abs(q[1,:])/(g*Cf*q[0,:]**(3.))
     q[1,:] = q[1,:] + q[0,:]*g*(Slope - Sf)*dt
     
 class shallow_water_solver():

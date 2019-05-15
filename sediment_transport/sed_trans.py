@@ -184,7 +184,9 @@ def get_unit_bed_load_slope(h,u,D0, slope, rho_particule, angleReposeDegrees = 3
 
     tau = get_bed_shear(h,u,D0)
     
-    return get_unit_bed_load_slope_shear(tau, D0, slope, rho_particule, angleReposeDegrees, type, useSlopeAdjust)
+    qsb = get_unit_bed_load_slope_shear(tau, D0, slope, rho_particule, angleReposeDegrees, type, useSlopeAdjust)
+    
+    return qsb * sign
     
     
     
