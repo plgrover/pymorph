@@ -142,6 +142,7 @@ class NullShallowHydroMorphologicalModel(object):
         self._u = None
         self._mannings = None
         self._ks = None
+        self._ycr_factor = 1.0
         
     def setup_bed_properties(self, D50, repose_angle = 30., rho_particle = 2650., nP = 0.4):
         self._D50 = D50
@@ -188,15 +189,16 @@ class NullShallowHydroMorphologicalModel(object):
         
     def setup_mannings_hydro_model(self, mannings, bed_slope):
         self._mannings = mannings
+        self._ks = 0.0033
         self._bed_slope = bed_slope
         self._sws = None
-        self._update_time = 10
+        self._update_time = 15
         
     def setup_chezy_hydro_model(self, ks, bed_slope):
         self._ks = ks
         self._bed_slope = bed_slope
         self._sws = None
-        self._update_time = 10
+        self._update_time = 15
         
     def _init_hydrodynamic_model(self, tfinal=300., max_steps=100000):
         #--------------------------------
@@ -211,7 +213,6 @@ class NullShallowHydroMorphologicalModel(object):
         else:
             self._sws.set_mannings_source_term(mannings=self._mannings, slope=self._bed_slope)
         
-        
         self._sws.set_Dirichlet_BC(self._sOut, self._qin)
         self._sws.set_inital_conditions(self._sOut, 0.0)
         self._sws.set_controller(tfinal = tfinal, num_output_times=1)
@@ -222,6 +223,10 @@ class NullShallowHydroMorphologicalModel(object):
         q = self._sws.get_qf()
 
         return h, u, q
+    
+    def _adjust_ycr(self, factor):
+        self._ycr_factor = factor
+        
     
     def _apply_smoothing_filter(self, x, z):
         # ----------------------------------
@@ -303,10 +308,10 @@ class NullShallowHydroMorphologicalModel(object):
             
     def _calculate_bedload(self, h, u, slope):
         qbedload = np.zeros(self._nx)
+        D50 = self._D50 * self._ycr_factor
         
-        # Nov 13 2018 - Can modify later
         for i in range(0,self._nx):
-            qbedload[i] = sedtrans.get_unit_bed_load_slope(h[i], u[i], self._D50, slope[i], 
+            qbedload[i] = sedtrans.get_unit_bed_load_slope(h[i], u[i], D50, slope[i], 
                                                        self._rho_particule, 
                                                        angleReposeDegrees = self._repose_angle, 
                                                        type=self._sed_model,
@@ -452,9 +457,9 @@ class ShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel):
             if (n*dt / extractionTime) == math.floor(n*dt / extractionTime):        
                 timestep = n*dt
                 self._extract_results(self._xc, self._zc, u, q, h, qbedload, timestep, dt, fileName)              
-                self._calculate_wave_speed(self._zc, timestep)
-                self._calculate_wave_length(self._zc, timestep)
-                self._calculate_wave_height(self._zc, timestep)
+                #self._calculate_wave_speed(self._zc, timestep)
+                #self._calculate_wave_length(self._zc, timestep)
+                #self._calculate_wave_height(self._zc, timestep)
         return self._zc, u, q, h, qbedload
             
             

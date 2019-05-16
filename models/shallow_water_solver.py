@@ -1,5 +1,7 @@
 from clawpack import riemann
-import clawpack.petclaw as pyclaw
+#import clawpack.petclaw as pyclaw
+
+from clawpack import pyclaw
 import numpy as np
 import math
 from scipy.sparse.linalg.isolve._iterative import zbicgrevcom
@@ -8,10 +10,10 @@ from scipy.sparse.linalg.isolve._iterative import zbicgrevcom
 
 # http://www.clawpack.org/bc.html
 # https://groups.google.com/forum/#!searchin/claw-users/dirichlet%7Csort:date/claw-users/dg7SzX6keqM/1nanvItqBwAJ
-    
+
 def inlet_BC(state,dim,t,qbc,auxbc,num_ghost):
     qIn = state.problem_data['lower_bc_data']
-    qbc[0, :num_ghost:] = qbc[0, num_ghost]
+    qbc[0, :num_ghost] = qbc[0, num_ghost]
     qbc[1,:num_ghost] = qIn
     
     
@@ -19,22 +21,8 @@ def outlet_BC(state,dim,t,qbc,auxbc,num_ghost):
     sOut = state.problem_data['upper_bc_data']
     n = len(state.grid.x.centers)
     hOut = sOut - state.aux[0, n-1]
-    qbc[0,-num_ghost:] = hOut
+    qbc[0, -num_ghost:] = hOut
     qbc[1, -num_ghost:] = qbc[1, -num_ghost - 1]
-    
-# http://www.clawpack.org/riemann_book/html/Kitchen_sink_problem.html
-def inner_state(state,dim,t,qbc,auxbc,num_ghost):
-    h =  state.problem_data['lower_bc_data'][0]
-    q =  state.problem_data['lower_bc_data'][1]
-    qbc[0,:num_ghost] = h
-    qbc[1,:num_ghost] = q
-    
-def outer_state(state,dim,t,qbc,auxbc,num_ghost):
-    h =  state.problem_data['upper_bc_data'][0]
-    q =  state.problem_data['upper_bc_data'][1]
-    qbc[0,-num_ghost:] = h
-    qbc[1,-num_ghost:] = q
-    
 
 
 def source_mannings(solver,state,dt):
@@ -55,7 +43,6 @@ def source_mannings(solver,state,dt):
     # Now adjust the momentum term
     n = state.problem_data['mannings']
     Slope = state.problem_data['slope']
-    
     
     Sf = (n**2)*q[1,:]*np.abs(q[1,:])/(q[0,:]**(10./3.))
     #q[1,:] = q[1,:] + q[0,:]* state.problem_data['grav'] * (Slope-Sf) *dt
@@ -80,7 +67,7 @@ def source_chezy(solver,state,dt):
     Sf = q[1,:]*np.abs(q[1,:])/(g*(cf**2.)*q[0,:]**(3.))
     
     q[1,:] = q[1,:] + q[0,:]*g*(Slope - Sf)*dt
-    
+
 class shallow_water_solver():
     
     def __init__(self, kernel_language='Fortran', solver_type='classic'):
@@ -119,11 +106,13 @@ class shallow_water_solver():
         # ===============================
         # Configure the solver
         # ===============================
-        self.solver.limiters = pyclaw.limiters.tvd.vanleer
+        self.solver.limiters = pyclaw.limiters.tvd.minmod
         self.solver.fwave = True
         self.solver.num_waves = 2
         self.solver.num_eqn = 2        
         self.solver.max_steps = max_steps
+        self.solver.source_split = 1
+        self.solver.order = 2
         
     def set_state_domain(self,x,z):
         # ============================
@@ -134,23 +123,21 @@ class shallow_water_solver():
         self.state = pyclaw.State(self.domain, 2, 1)
         
         xc = self.state.grid.x.centers
-        dx = self.state.grid.delta[0]
-        #print('Grid dx = {0}'.format(dx))
-        #print('Grid nx = {0}'.format(len(xc)))
-        
+        dx = self.state.grid.delta[0]      
         
         # Specify the bathymetry
         self.state.aux[0, :] = z
         
         # Gravitational constant
         self.state.problem_data['grav'] = 9.8
-        self.state.problem_data['dry_tolerance'] = 1.e-3
+        self.state.problem_data['dry_tolerance'] = 1.e-5
         self.state.problem_data['sea_level'] = 0.0
         
     def set_mannings_source_term(self, mannings=0.022, slope=1/792.):        
         self.solver.step_source = source_mannings
         self.state.problem_data['mannings'] = mannings
         self.state.problem_data['slope'] = slope
+        self.state.problem_data['ks'] = 0.0033
         
     def set_chezy_source_term(self, ks=0.0033, slope=1/792.):        
         self.solver.step_source = source_chezy
@@ -193,14 +180,14 @@ class shallow_water_solver():
         self.solver.bc_lower[0] = pyclaw.BC.custom
         self.solver.bc_upper[0] = pyclaw.BC.custom
         
-        self.solver.aux_bc_lower[0] = pyclaw.BC.extrap
-        self.solver.aux_bc_upper[0] = pyclaw.BC.extrap
-        
         self.state.problem_data['lower_bc_data'] = qIn
         self.state.problem_data['upper_bc_data'] = sOut
-
+        print('qin ', qIn)
         self.solver.user_bc_lower = inlet_BC
         self.solver.user_bc_upper = outlet_BC
+
+        self.solver.aux_bc_lower[0] = pyclaw.BC.extrap
+        self.solver.aux_bc_upper[0] = pyclaw.BC.extrap
 
         
         
@@ -221,6 +208,8 @@ class shallow_water_solver():
         
     def run(self):
         status = None
+        print('num_dim: {0}'.format(self.solver.num_dim))
+        
         if self.controller != None and self.state!=None:
             status = self.controller.run()
         else:
