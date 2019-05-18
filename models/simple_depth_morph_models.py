@@ -90,10 +90,9 @@ class TVD2ndWenoModel(NullExnerModel):
             floc = weno.get_stencil(flux,i - 1, i + 1)
             z1[i] = z[i]-(1./(1.-baseModel._nP))*dt/baseModel._dx*(floc[1] - floc[0])
             
-        # Now update hydraulics using z1, and update the bedload
-        h1, u1, q1 = baseModel._update_hydrodynamic_model(baseModel._h, baseModel._q, baseModel._xc, z1, baseModel._update_time)
-        slope1 = np.gradient(z1)
-        qbedload1 = baseModel._calculate_bedload(h1, u1, slope1)
+        # Now update bedload using z1, and update the bedload
+        qbedload1 = baseModel._calculate_bedload(z1)
+        
         
         for i in range(0, baseModel._nx): #i=2
             # Now update based on the updated values
@@ -126,22 +125,19 @@ class TVD2ndWenoModel(NullExnerModel):
 """
     This is the base class for the model 
 """
-class NullShallowHydroMorphologicalModel(object):
+class NullSimpleHydroMorphologicalModel(object):
     """
+
     """
 
     def __init__(self):
         self._useAvalanche = True
         self._useSmoother = False
-        self._sed_model = 'bagnold'
         self._verts = []
         self._tsteps = []
         self._h = None
         self._q = None
         self._u = None
-        self._mannings = None
-        self._ks = None
-        self._ycr_factor = 1.0
         
     def setup_bed_properties(self, D50, repose_angle = 30., rho_particle = 2650., nP = 0.4):
         self._D50 = D50
@@ -156,9 +152,9 @@ class NullShallowHydroMorphologicalModel(object):
         self._repose_angle = repose_angle
         self._adjustment_angle = adjustment_angle
         
-    def flow_boundary_conditions(self, qin, sOut):
+    def flow_boundary_conditions(self, qin, surface):
         self._qin = qin
-        self._sOut = sOut
+        self._surface = surface
         
     def setup_domain(self, xc, zc, dx):
         self._xc = xc
@@ -167,64 +163,20 @@ class NullShallowHydroMorphologicalModel(object):
         self._nx = len(xc)
         self._dx = dx
         
-        # Find the location of the first peak
-        peaks, _ = find_peaks(zc, height=0.02)
-        self._peak1 = peaks[0]
-        self._wave_speed = {}
-        self._wave_length = {}
-        self._wave_height = {}
+        
 
     def setup_morpho_model(self, exner_model, 
                            useAvalanche = True, 
                            useSmoother = True, 
-                           sed_model='bagnold', 
-                           useSlopeAdjust = False):
+                           a=0.001, 
+                           b = 3.0):
         
         self._useAvalanche = useAvalanche
         self._useSmoother = useSmoother
-        self._sed_model = sed_model
-        self._useSlopeAdjust = useSlopeAdjust
+        self._a = a
+        self._b = b
         self._exner_model = exner_model
-        
-    def setup_mannings_hydro_model(self, mannings, bed_slope):
-        self._mannings = mannings
-        self._ks = 0.0033
-        self._bed_slope = bed_slope
-        self._sws = None
-        self._update_time = 15
-        
-    def setup_chezy_hydro_model(self, ks, bed_slope):
-        self._ks = ks
-        self._bed_slope = bed_slope
-        self._sws = None
-        self._update_time = 15
-        
-    def _init_hydrodynamic_model(self, tfinal=300., max_steps=100000):
-        #--------------------------------
-        # Initalize the model
-        #--------------------------------
-        self._sws = shallow_water_solver(kernel_language='Fortran')
-        self._sws.set_solver(max_steps=max_steps)
-        self._sws.set_state_domain(self._xc, self._zc)
-        
-        if self._mannings == None:
-            self._sws.set_chezy_source_term(ks = self._ks, slope = self._bed_slope)
-        else:
-            self._sws.set_mannings_source_term(mannings=self._mannings, slope=self._bed_slope)
-        
-        self._sws.set_Dirichlet_BC(self._sOut, self._qin)
-        self._sws.set_inital_conditions(self._sOut, 0.0)
-        self._sws.set_controller(tfinal = tfinal, num_output_times=1)
-        self._sws.run()
-        
-        h = self._sws.get_hf()
-        u = self._sws.get_uf()
-        q = self._sws.get_qf()
 
-        return h, u, q
-    
-    def _adjust_ycr(self, factor):
-        self._ycr_factor = factor
         
     
     def _apply_smoothing_filter(self, x, z):
@@ -245,77 +197,20 @@ class NullShallowHydroMorphologicalModel(object):
         return zsmooth
             
         
-
-    def _update_hydrodynamic_model(self, h, q, x, z, tfinal=10., max_steps=100000):
-        self._sws = shallow_water_solver(kernel_language='Fortran')
-        self._sws.set_solver(max_steps=max_steps)
-        self._sws.set_state_domain(x, z)
-        if self._mannings == None:
-            self._sws.set_chezy_source_term(ks = self._ks, slope = self._bed_slope)
-        else:
-            self._sws.set_mannings_source_term(mannings=self._mannings, slope=self._bed_slope)
-        self._sws.set_Dirichlet_BC(self._sOut, self._qin)
-        self._sws.set_conditions_from_previous(h, q)
-        self._sws.set_controller(tfinal = tfinal, num_output_times = 1)
-        self._sws.run()
-        
-        h = self._sws.get_hf()
-        u = self._sws.get_uf()
-        q = self._sws.get_qf()
-
-        return h, u, q
     
-    def _calculate_wave_height(self, z, timestep):
-        top_peaks, _ = find_peaks(z, height = 0.02)
-        bottom_peaks, _ = find_peaks(-1.*z, height = -0.02)
-        
-        ztop = [z[i] for i in top_peaks]
-        zbottom = [z[i] for i in bottom_peaks]
-        
-        ztop = np.array(ztop)
-        zbottom = np.array(zbottom)
-        
-        self._wave_height[timestep] = ztop.mean() - zbottom.mean()
-                
             
-    
-    def _calculate_wave_length(self, z, timestep):
-        peaks, _ = find_peaks(-1.*z, height = -0.02)
-        lengths = []
-        last_peak = None
-        for peak in peaks:
-            if last_peak == None:
-                last_peak = peak
-            else:
-                lengths.append(self._dx * (peak-last_peak))
-                
-        lengths = np.array(lengths)
-        self._wave_length[timestep] = lengths.mean()
-    
-    def _calculate_wave_speed(self, z, timestep):
-        # Note that we are picking off the bttom part 
-        # of the dune.
-        peaks, _ = find_peaks(-1.*z, height = -0.02)
-        peak_new = None
-        for peak in peaks:
-            if peak > self._peak1:
-                peak_new = peak
-                break
-        distance = (peak_new - self._peak1) * self._dx
-        
-        self._wave_speed[timestep] = distance
-            
-    def _calculate_bedload(self, h, u, slope):
+    def _calculate_bedload(self, z):
         qbedload = np.zeros(self._nx)
-        D50 = self._D50 * self._ycr_factor
-        
-        for i in range(0,self._nx):
-            qbedload[i] = sedtrans.get_unit_bed_load_slope(h[i], u[i], D50, slope[i], 
-                                                       self._rho_particule, 
-                                                       angleReposeDegrees = self._repose_angle, 
-                                                       type=self._sed_model,
-                                                        useSlopeAdjust= self._useSlopeAdjust)
+        for i in range(0,self._nx): #i=2 
+            a = self._a
+            b = self._b
+            qin = self._qin
+            surface = self._surface
+            u = qin/(surface-z[i])
+            qbedload[i] = (a *u**b)
+            
         return qbedload
+        
     
     def _avalanche_model(self, x, z):
         # Apply the avalanche model
@@ -336,35 +231,24 @@ class NullShallowHydroMorphologicalModel(object):
         return znew
     
     
-    def _extract_results(self, x, z, u, q, h, qbedload, timestep, dt, fileName):
-        self._verts.append(list(zip(self._xc.copy(),self._zc.copy(), u.copy(), q.copy(), h.copy(), qbedload.copy())))
+    def _extract_results(self, x, z, qbedload, timestep, dt, fileName):
+        self._verts.append(list(zip(self._xc.copy(),self._zc.copy(), qbedload.copy())))
         self._tsteps.append(timestep)
                 
         if fileName != None:
             np.save(fileName, verts)
-            
-        courant = weno.get_Max_Phase_Speed(qbedload, z, self._nP)*dt/self._dx
-        surf = self._zc + h
+
         
-        print('Time step: {0} mins - uavg: {1} - Elevation {2}'.format(timestep/60., u.mean(), surf.mean()))
-        print('Courant number: {0}'.format(courant))
+        #print('Time step: {0} mins - uavg: {1} - Elevation {2}'.format(timestep/60., u.mean(), surf.mean()))
+        #print('Courant number: {0}'.format(courant))
                     
     
     def run(self, simulationTime, dt, extractionTime, fileName):
         pass
 
-    def get_wave_dataframe(self):
-        wavehdf = pd.DataFrame.from_dict(self._wave_height, orient='index',columns=['height'])
 
-        waveldf = pd.DataFrame.from_dict(self._wave_length, orient='index',columns=['length'])
 
-        wavesdf = pd.DataFrame.from_dict(self._wave_speed, orient='index',columns=['speed'])
-
-        waveDf = pd.concat([wavehdf, waveldf, wavesdf], axis=1)
-        
-        return waveDf
-
-class ShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel):
+class SimpleHydroMorphologicalModel(NullSimpleHydroMorphologicalModel):
 
     
     def run(self, simulationTime, dt, extractionTime, fileName):
@@ -383,23 +267,17 @@ class ShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel):
         print('Grid dx = {0}'.format(self._dx))
         print('Grid nx = {0}'.format(self._nx))
         
-        # --------------------------------
-        # Initialize the hydro model transport
-        # --------------------------------
-        print('Initializing hydrodynamic model...')
-        h, u, q = self._init_hydrodynamic_model()
-        self._h  = h
-        self._u = u
-        self._q = q
-        print('Completed the intialization of the model')
 
+        
+        print('Completed the intialization of the model')
         print('D50:    {0}'.format(self._D50))
         print('Rho Particle:    {0}'.format(self._rho_particule))
         print('Angle Repose Degrees:    {0}'.format(self._repose_angle))
         # --------------------------------
         # Initialize the sed transport
         # --------------------------------
-        qbedload = self._calculate_bedload(h, u, slope)       
+        print('Zc = {0}'.format(len(self._zc)))
+        qbedload = self._calculate_bedload(self._zc)
         print('Max qbedload = {0}'.format(qbedload.max()))
         
 
@@ -432,37 +310,23 @@ class ShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel):
                 print('Applying smoothing')
             
             # --------------------------------
-            # update the flow
-            # --------------------------------
-            
-            if cntr > -1:
-                h, u, q = self._update_hydrodynamic_model(h, q, 
-                                                      self._xc, znp1, tfinal=self._update_time)
-                self._h  = h
-                self._u = u
-                self._q = q
-                cntr = 0
-            cntr += 1
-            
-            # --------------------------------
             # update the bedload 
             # --------------------------------
             slope = np.gradient(znp1,self._dx)
-            qbedload = self._calculate_bedload(self._h, self._u, slope)
+            qbedload = self._calculate_bedload(znp1)
             
             self._zc = znp1
             
             
             if (n*dt / extractionTime) == math.floor(n*dt / extractionTime):        
                 timestep = n*dt
-                self._extract_results(self._xc, self._zc, u, q, h, qbedload, timestep, dt, fileName)              
-                #self._calculate_wave_speed(self._zc, timestep)
-                #self._calculate_wave_length(self._zc, timestep)
-                #self._calculate_wave_height(self._zc, timestep)
-        return self._zc, u, q, h, qbedload
+                self._extract_results(self._xc, self._zc, qbedload, timestep, dt, fileName)              
+
+        return self._zc, qbedload
             
             
         
+            
             
 # -------------------------------------------------------------------
 '''
