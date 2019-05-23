@@ -13,7 +13,8 @@ from scipy.sparse.linalg.isolve._iterative import zbicgrevcom
 
 def inlet_BC(state,dim,t,qbc,auxbc,num_ghost):
     qIn = state.problem_data['lower_bc_data']
-    qbc[0, :num_ghost] = qbc[0, num_ghost]
+    # The num_ghost + 1 I think is wrong but seems to stablize the model?
+    qbc[0, :num_ghost] =qbc[0, num_ghost+1]
     qbc[1,:num_ghost] = qIn
     
     
@@ -21,6 +22,7 @@ def outlet_BC(state,dim,t,qbc,auxbc,num_ghost):
     sOut = state.problem_data['upper_bc_data']
     n = len(state.grid.x.centers)
     hOut = sOut - state.aux[0, n-1]
+    # print(sOut, hOut, qbc[0, -num_ghost:] )
     qbc[0, -num_ghost:] = hOut
     qbc[1, -num_ghost:] = qbc[1, -num_ghost - 1]
 
@@ -188,6 +190,7 @@ class shallow_water_solver():
 
         self.solver.aux_bc_lower[0] = pyclaw.BC.extrap
         self.solver.aux_bc_upper[0] = pyclaw.BC.extrap
+    
 
         
         

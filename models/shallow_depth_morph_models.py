@@ -92,8 +92,8 @@ class TVD2ndWenoModel(NullExnerModel):
             
         # Now update hydraulics using z1, and update the bedload
         h1, u1, q1 = baseModel._update_hydrodynamic_model(baseModel._h, baseModel._q, baseModel._xc, z1, baseModel._update_time)
-        slope1 = np.gradient(z1)
-        qbedload1 = baseModel._calculate_bedload(h1, u1, slope1)
+        #slope1 = np.gradient(z1)
+        qbedload1 = baseModel._calculate_bedload(h1, u1, baseModel._xc, z1)
         
         for i in range(0, baseModel._nx): #i=2
             # Now update based on the updated values
@@ -460,335 +460,178 @@ class ShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel):
                 #self._calculate_wave_length(self._zc, timestep)
                 #self._calculate_wave_height(self._zc, timestep)
         return self._zc, u, q, h, qbedload
-            
-            
+    
+    
+    
+    
+class ModifiedShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel):
+
+    def _get_top_peaks(self, z, dx):
+        top_peaks, _ = find_peaks(z, height = z.mean()*1.1, distance = int(0.5/dx))
+        return top_peaks
+
+    def _get_bottom_indexes(self, z, crest_indexes, dx):
+        bottom_indexes = []
+
+        for crest_index in crest_indexes:
+
+            index_end = crest_index + int(0.5*1.3/dx) 
+            minZ = np.amin(z[crest_index : index_end])
+            lowPoints = np.where(z == minZ)[0]
+
+            index = np.where(lowPoints > crest_index)[0][0]
+            index = lowPoints[index]
+            bottom_indexes.append(index)
+
+        return np.array(bottom_indexes)
+
+
+
+    def _calculate_bedload(self, h, u, x, z):
+        qbedload = np.zeros(len(x))
+        a = 0.0000465
+        b = 4.
+        qbedload = (a*u*(u) **(b-1.))
+        print('modify')
+        qbedload = self._modify_bedload(qbedload, x, z, scale_factor=self._scale_factor)
+        return qbedload
+
+
+
+    def _get_recirculation_indexes(self, x, z, crest_indexes, bottom_indexes):
+
+  
+
+        recirculation_indexes = []
+        for i in range(len(crest_indexes)):
+
+            height = z[crest_indexes[i]] - z[bottom_indexes[i]]        
+            xreattachment = (5.* height) + x[crest_indexes[i]]
+
+            index = bottom_indexes[i]
+            while index < len(x) and x[index] < xreattachment:
+                index += 1
+
+            recirculation_indexes.append(index)
+
+        return np.array(recirculation_indexes)
+
+    def _modify_bedload(self, qb, x, z, scale_factor):
+        qb_new = qb.copy()
         
+        dx = x[1] - x[0]
+        crest_indexes = self._get_top_peaks(z, dx)
+        base_indexes = self._get_bottom_indexes(z, crest_indexes, dx)
+        reattachment_indexes = self._get_recirculation_indexes(x, z, crest_indexes, base_indexes)
+        
+        # Adjust as required
+        for i in range(len(crest_indexes)):
+
+            qsb_reattachment = qb[reattachment_indexes[i]]
+
+            if i+1 < len(crest_indexes):
+                for j in range(crest_indexes[i]+1, reattachment_indexes[i]):
+                    qb_new[j] = qb[j] - qsb_reattachment
+
+                for j in range(reattachment_indexes[i], crest_indexes[i+1]):
+                    qb_new[j] = qb[j]*(x[j] - x[reattachment_indexes[i]] )**scale_factor/(x[crest_indexes[i+1]] - x[reattachment_indexes[i]])**scale_factor
+
+        return qb_new
+
+    def set_scale_factor(self, scale_factor):
+        self._scale_factor = scale_factor
             
-# -------------------------------------------------------------------
-'''
-class UpwindMorphologicalModel(NullMorphologicalModel):
-
-
-    def run_model(self, simulationTime, z=None, dt=1, useSlopeAdjust=True):
+    
+    def run(self, simulationTime, dt, extractionTime, fileName):
 
         print(' Starting simulation....')
         # --------------------------------
         #  Setup the model run parameters
         # --------------------------------
         nt = int(simulationTime / dt)  # Number of time steps
-
-        print('Number of time steps: {0}'.format(nt))
+        print('Number of time steps: {0} mins'.format(nt/60.))
+        slope = np.gradient(self._zc, self._dx)
 
         # --------------------------------
         # Set up the domain, BCs and ICs
         # --------------------------------
         print('Grid dx = {0}'.format(self._dx))
         print('Grid nx = {0}'.format(self._nx))
-
-        zc = None
-        if z == None:
-            zc = self._z_init.copy()
-        else:
-            zc = z.copy()
-
-        # Is this the correct way to calculate the bed slope?
-        bed_slope = np.gradient(zc, self._dx)
-        bedShear = self._bed_shear.copy()
-
+        
         # --------------------------------
-        # Initialize the sed transport
+        # Initialize the hydro model transport
         # --------------------------------
-        qbedload = np.zeros(self._nx)
+        print('Initializing hydrodynamic model...')
+        h, u, q = self._init_hydrodynamic_model()
+        self._h  = h
+        self._u = u
+        self._q = q
+        print('Completed the intialization of the model')
 
         print('D50:    {0}'.format(self._D50))
         print('Rho Particle:    {0}'.format(self._rho_particule))
-        print('Angle Repose Degrees:    {0}'.format(self._angleReposeDegrees))
-        print('Max Shear Stress:    {0}'.format(bedShear.max()))
-
-        for i in range(0, self._nx):
-            qbedload[i] = sedtrans.get_unit_bed_load_slope_shear(bedShear[i],
-                                                                 self._D50,
-                                                                 bed_slope[i],
-                                                                 self._rho_particule,
-                                                                 self._angleReposeDegrees,
-                                                                 type=self._type,
-                                                                 useSlopeAdjust=useSlopeAdjust)
-        #qbedload = savgol_filter(qbedload, 25, 3)
-
-        print('qbedload shape: {0}'.format(qbedload.shape))
-        print('Max qbedload = {0}'.format(qbedload.max()))
+        print('Angle Repose Degrees:    {0}'.format(self._repose_angle))
         # --------------------------------
-        # Eq 57
+        # Initialize the sed transport
         # --------------------------------
-        roe_speed = np.zeros(self._nx)
-        flux = np.zeros(self._nx)
-
-        # --------------------------------
-        # Set up the model reporting parameters
-        # --------------------------------
-
+        qbedload = self._calculate_bedload(h, u, self._xc, self._zc) 
+      
 
         # --------------------------------
         #  Run the model
         # --------------------------------
-        limiter = np.zeros(self._nx)
+        cntr = 0
         for n in range(1, nt):
-            zn = zc.copy()
-            for i in range(0, self._nx):  # i=2
-                zlocal = weno.get_stencil(zn, i - 2, i + 4)
+            
+            znp1 = np.zeros(self._nx)
 
-                r = weno.get_r(zn, i)
-
-                limiter[i] = weno.van_leer(r)
-
-                # Since k=3
-                # stencil is i-2 to i+2
-                qlocal = weno.get_stencil(qbedload, i - 2, i + 4)
-
-                if len(qlocal) != 6:
-                    raise ValueError('Stencil is incorrect')
-
-                # Determine the Upwind flux
-                # The 0.5 comes from the c+abs(c) which is 2 if the wave speed is +ive
-                # this is the evaluation of the left and right based fluxes. Eq. 18 and 19
-                # Note this actually comes from the appendix in Long et al:
-                # "If ai + 1/2≥0, the flow is from left to right, and corresponding
-                # bedform phase speed is also from left to right. Otherwise, if
-                # ai + 1/2b0, the flow is from right to left. Since only the sign of
-                # ai+1/2 is needed, we can simply use sign((qi+1 − qi)(zbi+1 − zbi))
-                # to avoid division by a small number when (zbi +1−zbi) ap- proaches
-                # zero. Because WENO only requires the sign of the phase speed, it is
-                # much more stable than schemes that require accurate estimate of phase
-                # speed both in magnitude and sign."
-
-                roe_speed[i] = np.sign((qlocal[3] - qlocal[2]) * (zlocal[3] - zlocal[2]))
-
-                if roe_speed[i] >= 0.0:
-                    # flux[i] = weno.get_left_flux(qlocal)
-                    qlocal = weno.get_stencil(qbedload,i-1,i+1)
-                    flux[i] = qlocal[0] + 0.5*limiter[i] *(qlocal[1]-qlocal[0])
-                    # flux[i] = qlocal[0]
-                else:
-                    # flux[i] = weno.get_right_flux(qlocal)
-                    qlocal = weno.get_stencil(qbedload, i-1, i+2)
-                    # flux[i] = qlocal[1]
-                    flux[i] = qlocal[2] + 0.5 * limiter[i] * (qlocal[1] - qlocal[2])
-                    #flux[i] = qlocal[2]
-
-
-            # ------------------------------
-            # Need the sign of the phase speed
-            # Need to check this out
-            # ------------------------------
-            for i in range(0, self._nx):  # i=2
-                floc = weno.get_stencil(flux, i - 1, i + 1)
-                zc[i] = zn[i] - (1. / (1. - self._nP)) * (dt / self._dx) * (floc[1] - floc[0])
-
-            bed_max_delta = np.max(np.abs(zn - zc))
-
-            # ------------------------------
-            # Apply the avalanche model
-            # ------------------------------
-            if self._avalanche:
-                zc, iterations1 = avalanche_model(self._dx, self._xc, zc, adjustment_angle=self._adjustment_angle)
-                # Now flip it to run in reverse
-                zflip = np.flip(zc, axis=0)
-                zflip, iterations1 = avalanche_model(self._dx, self._xc, zflip, adjustment_angle=self._adjustment_angle)
-                zc = np.flip(zflip, axis=0)
-
-            # ----------------------------------
-            # Apply the two-step smooting scheme Eq. 6 in Niemann et al 2011.
-            # ----------------------------------
-            if self._smooth:
-                zhat = np.zeros(self._nx)
-                for i in range(0, self._nx):  # i=2
-                    zlocal = weno.get_stencil(zc, i - 1, i + 2)
-                    zhat[i] = 0.5*zlocal[1] + 0.25*(zlocal[0]+zlocal[2])
-
-                for i in range(0, self._nx):
-                    zhatlocal = weno.get_stencil(zhat, i - 1, i + 2)
-                    zc[i] = (3./2.)*zhatlocal[1] - 0.25*(zhatlocal[0]+zhatlocal[2])
-                # Update the gradient.
-                bed_slope = np.gradient(zc, self._dx)
-                bed_slope = savgol_filter(bed_slope, 11, 2)
+            # --------------------------------
+            # Update the bed
+            # --------------------------------
+            znp1 = self._exner_model.update_bed(self._zc, qbedload, dt, self)
+            
+            # --------------------------------
+            # Avalanche the bed
+            # --------------------------------
+            if self._useAvalanche == True:
+                znp1 = self._avalanche_model(self._xc, znp1)
             else:
-                bed_slope = np.gradient(zc, self._dx)
+                print('Warning - not using avalanche')
+            
+            # --------------------------------
+            # Appy smoothing filter
+            # --------------------------------
+            if self._useSmoother == True:
+                znp1 = self._apply_smoothing_filter(self._xc, znp1)
+                print('Applying smoothing')
+            
+            # --------------------------------
+            # update the flow
+            # --------------------------------
+            
+            if cntr > -1:
+                h, u, q = self._update_hydrodynamic_model(h, q, 
+                                                      self._xc, znp1, tfinal=self._update_time)
+                self._h  = h
+                self._u = u
+                self._q = q
+                cntr = 0
+            cntr += 1
+            
+            # --------------------------------
+            # update the bedload 
+            # --------------------------------
+            qbedload = self._calculate_bedload(self._h, self._u, self._xc, znp1)
+            
+            self._zc = znp1
+            
+            
+            if (n*dt / extractionTime) == math.floor(n*dt / extractionTime):        
+                timestep = n*dt
+                self._extract_results(self._xc, self._zc, u, q, h, qbedload, timestep, dt, fileName)              
+                #self._calculate_wave_speed(self._zc, timestep)
+                #self._calculate_wave_length(self._zc, timestep)
+                #self._calculate_wave_height(self._zc, timestep)
+        return self._zc, u, q, h, qbedload
 
-
-            useShearShifter = True
-            if useShearShifter == True:
-                shift = self.calculate_mean_bedform_shift(self._z_init, zc)
-                #shift = 0.5 * (np.mean(shift) + np.max(shift))
-                shift = np.max(shift)
-                shift = shift/self._dx
-                bedShear = sciim.interpolation.shift(self._bed_shear, shift, mode='wrap', order = 1)
-
-
-
-
-            # ------------------------------
-            # Update the bed load
-            # ------------------------------
-            for i in range(0, self._nx):
-                qbedload[i] = sedtrans.get_unit_bed_load_slope_shear(bedShear[i],
-                                                                 self._D50,
-                                                                 bed_slope[i],
-                                                                 self._rho_particule,
-                                                                 self._angleReposeDegrees,
-                                                                 type=self._type,
-                                                                 useSlopeAdjust=useSlopeAdjust)
-            #qbedload = savgol_filter(qbedload, 25, 3)
-        print(' Done')
-        print(' ----------------------------')
-        return zc, qbedload, bedShear, roe_speed
-
-
-    def get_point_on_line(self, a, b, c, x0, y0):
-        denominator = (a**2 + b**2)
-        x1 = (b*(b*x0 - a*y0) - a*c)/denominator
-        y1 = (a*(-b*x0 + a*y0) - b*c)/denominator
-        d = abs(a*x0 + b*y0 + c)/math.sqrt(denominator)
-        return x1, y1, d
-
-
-
-
-    def calculate_mean_bedform_shift(self, zn, znp):
-        distance_tol = 1.e-6
-        slope_tol = 10.
-        StencilWidthBack = 4
-        StencilWidthForwards = 4
-
-        translations = []
-        for i in range(0, self._nx):
-
-            znlocal = weno.get_stencil(zn, i - StencilWidthBack, i + StencilWidthForwards)
-            znplocal = weno.get_stencil(znp, i - StencilWidthBack, i + StencilWidthForwards)
-            xlocal = weno.get_stencil(self._xc, i - StencilWidthBack, i + StencilWidthForwards)
-            xlocal = np.linspace(0., len(xlocal)*self._dx,len(xlocal))
-
-            # looking for the front of the bed
-            # Check if monotinitcally decreasing
-            if (np.all(np.diff(znlocal) <= 0) and np.all(np.diff(znplocal) <= 0)):
-
-                resnp = scipy.stats.linregress(xlocal, znplocal)
-                a = resnp.slope
-
-                # Calculate the angle of the slope
-                slope_angle_degrees = math.atan(abs(a)) * 57.2958
-                if slope_angle_degrees > slope_tol:
-
-                    c = resnp.intercept
-                    b = -1.
-                    x0 = xlocal[StencilWidthBack]
-                    y0 = znlocal[StencilWidthBack]
-
-                    x1, y1, d = self.get_point_on_line(a, b, c, x0, y0)
-
-                    if d > distance_tol:
-                        #print(x1, y1, d)
-                        deltaY = abs(y0 - y1)
-                        gamma = math.asin(deltaY/d)
-                        movement = d/math.cos(gamma)
-
-                        translations.append(movement)
-
-        translations = np.array(translations)
-        return translations
-
-
-    def update_bed_shear(self, bedShear,z0, zc):
-        for i in range(0, self._nx):
-            # Calculate the change in the bed
-            # A negative value means bed in going up, positive means erosion
-
-
-            PolyOrder = 2
-            StencilWidthBack = 5
-            StencilWidthForwards = 2
-            zlocal = weno.get_stencil(z0, i - StencilWidthBack, i + StencilWidthForwards)
-            bedShearLocal = weno.get_stencil(bedShear, i - StencilWidthBack, i + StencilWidthForwards)
-            xlocal = weno.get_stencil(self._xc, i - StencilWidthBack, i + StencilWidthForwards)
-            xRealative = np.linspace(0., len(xlocal)*self._dx,len(xlocal))
-
-
-            try:
-                zpoly = np.polyfit(zlocal, xRealative, PolyOrder)
-                p = np.poly1d(zpoly)
-                xnew = p(zc[i])
-
-                if xnew > xRealative.max() or xnew < xRealative.min():
-                    print('Exceeded range.')
-                else:
-                    tauPoly = np.polyfit(xRealative,bedShearLocal, PolyOrder)
-                    p = np.poly1d(tauPoly)
-                    bedShear[i] = p(xnew)
-            except:
-                print('zlocal = {0}'.format(zlocal))
-                print('xRealtive = {0}'.format(xRealative))
-
-        return bedShear
-
-
-
-
-def getLimiter(upSlope,dsSlope):
-    r = dsSlope/(upSlope + 1.e-12)
-    if r < 0.:
-        r=0.
-    phi = (r + abs(r)) / (1 + abs(r))
-
-    if phi > 2.:
-        phi = 2
-
-    if phi < 0.:
-        phi = 0
-
-    return phi,r
-
-def is_number(s):
-    try:
-        float(s)
-        return True
-    except ValueError:
-        return False
-
-
-
-def load_bed_profile(bed_profile_path):
-    z = []
-    params = {}
-
-    with open(bed_profile_path) as f:
-        for line in f:
-            values = line.split()
-            if len(values) > 0:
-                if is_number(values[0]) == False:
-                    print(values)
-                    if float(values[1]).is_integer():
-                        params[values[0]] = int(values[1])
-                    else:
-                        params[values[0]] = float(values[1])
-                else:
-
-                    if is_number(values[0]) == True:
-                        z.append(float(values[0]))
-    z = np.array(z)
-    xmax = float(params['nrows']) * params['cellsize']
-    nx = params['nrows']
-    dx = params['cellsize']
-    xc = np.linspace(0, xmax, nx)
-
-    return z, xc, dx
-
-def load_bed_shear_stress(bed_shear_stress_path):
-    retval = []
-    with open(bed_shear_stress_path) as f:
-        for line in f:
-            values = line.split()
-            if len(values) > 0:
-                retval.append(float(line))
-
-    return np.array(retval)'''
-
-
+    

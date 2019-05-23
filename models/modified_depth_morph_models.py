@@ -231,8 +231,6 @@ class NullSimpleHydroMorphologicalModel(object):
                 
                 xreattachments.append([index])
                 
-                
-                
             else:
                 print('not implemented')
             
