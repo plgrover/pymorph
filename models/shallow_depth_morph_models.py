@@ -191,13 +191,13 @@ class NullShallowHydroMorphologicalModel(object):
         self._ks = 0.0033
         self._bed_slope = bed_slope
         self._sws = None
-        self._update_time = 15
+        self._update_time = 10
         
     def setup_chezy_hydro_model(self, ks, bed_slope):
         self._ks = ks
         self._bed_slope = bed_slope
         self._sws = None
-        self._update_time = 15
+        self._update_time = 10
         
     def _init_hydrodynamic_model(self, tfinal=300., max_steps=100000):
         #--------------------------------
@@ -489,11 +489,10 @@ class ModifiedShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel)
 
     def _calculate_bedload(self, h, u, x, z):
         qbedload = np.zeros(len(x))
-        a = 0.0000465
+        a = 0.000046
         b = 4.
         qbedload = (a*u*(u) **(b-1.))
-        print('modify')
-        qbedload = self._modify_bedload(qbedload, x, z, scale_factor=self._scale_factor)
+        #qbedload = self._modify_bedload(qbedload, x, z, scale_factor=self._scale_factor)
         return qbedload
 
 
@@ -533,7 +532,7 @@ class ModifiedShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel)
                 for j in range(crest_indexes[i]+1, reattachment_indexes[i]):
                     qb_new[j] = qb[j] - qsb_reattachment
 
-                for j in range(reattachment_indexes[i], crest_indexes[i+1]):
+                for j in range(reattachment_indexes[i], crest_indexes[i+1]+2):
                     qb_new[j] = qb[j]*(x[j] - x[reattachment_indexes[i]] )**scale_factor/(x[crest_indexes[i+1]] - x[reattachment_indexes[i]])**scale_factor
 
         return qb_new

@@ -184,7 +184,7 @@ class shallow_water_solver():
         
         self.state.problem_data['lower_bc_data'] = qIn
         self.state.problem_data['upper_bc_data'] = sOut
-        print('qin ', qIn)
+
         self.solver.user_bc_lower = inlet_BC
         self.solver.user_bc_upper = outlet_BC
 
@@ -211,7 +211,7 @@ class shallow_water_solver():
         
     def run(self):
         status = None
-        print('num_dim: {0}'.format(self.solver.num_dim))
+        #print('num_dim: {0}'.format(self.solver.num_dim))
         
         if self.controller != None and self.state!=None:
             status = self.controller.run()
