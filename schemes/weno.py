@@ -93,7 +93,18 @@ def get_Max_Phase_Speed(qbedload,z,nP):
             Cs[i] = dq/((1-nP)*dz)
     return Cs.max()
         
-
+def get_Phase_Speeds(qbedload,z,nP):
+    nx = len(z)
+    Cs = np.zeros(nx)
+    for i in range(0,nx): #i=2       
+        qloc = get_stencil(qbedload,i-1,i+2)  
+        zloc = get_stencil(z,i-1,i+2) 
+        dq = (qloc[2] - qloc[0])
+        dz = (zloc[2] - zloc[0])
+        
+        if dz != 0.:
+            Cs[i] = dq/((1-nP)*dz)
+    return Cs
 def get_stencil(ulist: object, start_index: object, end_index: object) -> object:
     '''
     Method to get the stencil - implements a periodic BC
@@ -174,6 +185,7 @@ def get_right_flux(qloc):
     qs = np.zeros(3)
     
     # Calculate smoothness measurements
+    # note that in the paper from Long et al. 2008 I think that Eq. 48 has and error
     S[0] = (13./12.) * (qloc[1] - 2.0*qloc[2] + qloc[3])**2 + (1.0/4.0)* (qloc[1]-4.0*qloc[2] + 3.0*qloc[3])**2 
     
     S[1] = (13./12.) * (qloc[2] - 2.0*qloc[3] + qloc[4])**2 + (1.0/4.0)* (qloc[2] - qloc[4])**2 

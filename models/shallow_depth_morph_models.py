@@ -20,15 +20,43 @@ from scipy.signal import find_peaks
 class NullExnerModel(object):
     def update_bed(self, zc, qbedload, dt, baseModel):
         pass
+
+class EulerCentredModel(NullExnerModel):
+    def update_bed(self, z, qbedload, dt, baseModel, buffer = 10):
+        znp1 = np.zeros(baseModel._nx)
+        for i in range(buffer, baseModel._nx-buffer): #i=2       
+            qloc = weno.get_stencil(qbedload,i-1,i+2)  
+            znp1[i] = z[i]-(1./(1.-nP))*dt/(baseModel._dx*2.)*(qloc[2] - qloc[0])
+        return znp1
+
+class MacCormackModel(NullExnerModel):
     
-    
+    def update_bed(self, z, qbedload, dt, baseModel, buffer = 0):
+        znp1 = np.zeros(baseModel._nx)
+        zhatn = np.zeros(baseModel._nx)
+
+        for i in range(buffer, baseModel._nx-buffer): #i=2      
+            qloc = weno.get_stencil(qbedload,i-1,i+2)  
+            zhatn[i] = z[i]-(1./(1.- baseModel._nP))*dt/(baseModel._dx)*(qloc[1] - qloc[0])
+
+        # Now update hydraulics using z1, and update the bedload
+        h1, u1, q1 = baseModel._update_hydrodynamic_model(baseModel._h, baseModel._q, baseModel._xc, zhatn, baseModel._update_time)
+        #slope1 = np.gradient(z1)
+        qbedload1 = baseModel._calculate_bedload(h1, u1, baseModel._xc, zhatn, baseModel._a, baseModel._b)
+
+        for i in range(buffer, baseModel._nx-buffer): #i=2       
+            qloc = weno.get_stencil(qbedload1,i - 1, i + 2)  
+            znp1[i] = 0.5*(zhatn[i]+z[i]) - (1/(1.- baseModel._nP))*dt/(baseModel._dx*2.)*(qloc[2] - qloc[1])
+
+        return znp1        
+
 class EulerWenoModel(NullExnerModel):
     
-    def update_bed(self, z, qbedload, dt, baseModel):
+    def update_bed(self, z, qbedload, dt, baseModel, buffer = 0):
         
         znp1 = np.zeros(baseModel._nx)
         flux = np.zeros(baseModel._nx)
-        for i in range(0, baseModel._nx): #i=2
+        for i in range(buffer, baseModel._nx-buffer): #i=2
             zloc = weno.get_stencil(z, i-2, i+4)        
             # Since k=3
             # stencil is i-2 to i+2 
@@ -50,7 +78,7 @@ class EulerWenoModel(NullExnerModel):
                 
         # Need the sign of the phase speed
         # Need to check this out
-        for i in range(0, baseModel._nx): #i=2       
+        for i in range(buffer, baseModel._nx-buffer): #i=2
             floc = weno.get_stencil(flux, i - 1, i + 1)
             znp1[i] = z[i] - (1./(1. - baseModel._nP))*(dt/(baseModel._dx))*(floc[1] - floc[0])
             
@@ -59,14 +87,15 @@ class EulerWenoModel(NullExnerModel):
     
 class TVD2ndWenoModel(NullExnerModel):
     
-    def update_bed(self, z, qbedload, dt, baseModel):
+    def update_bed(self, z, qbedload, dt, baseModel, buffer = 0):
         
         # Step 1 - Estimate z1
         z1 = np.zeros(baseModel._nx) 
         znp1 = np.zeros(baseModel._nx)
         flux = np.zeros(baseModel._nx)
         
-        for i in range(0, baseModel._nx): #i=2
+        # Note that I have modified these to move away from the inlet/outlet
+        for i in range(buffer, baseModel._nx-buffer): #i=2
             zloc = weno.get_stencil(z, i-2, i+4)        
             # Since k=3
             # stencil is i-2 to i+2 
@@ -86,16 +115,16 @@ class TVD2ndWenoModel(NullExnerModel):
             else:
                 flux[i] = weno.get_right_flux(qloc)
                 
-        for i in range(0, baseModel._nx): #i=2       
+        for i in range(buffer, baseModel._nx-buffer): #i=2
             floc = weno.get_stencil(flux,i - 1, i + 1)
             z1[i] = z[i]-(1./(1.-baseModel._nP))*dt/baseModel._dx*(floc[1] - floc[0])
             
         # Now update hydraulics using z1, and update the bedload
         h1, u1, q1 = baseModel._update_hydrodynamic_model(baseModel._h, baseModel._q, baseModel._xc, z1, baseModel._update_time)
         #slope1 = np.gradient(z1)
-        qbedload1 = baseModel._calculate_bedload(h1, u1, baseModel._xc, z1)
+        qbedload1 = baseModel._calculate_bedload(h1, u1, baseModel._xc, z1, baseModel._a, baseModel._b)
         
-        for i in range(0, baseModel._nx): #i=2
+        for i in range(buffer, baseModel._nx-buffer): #i=2
             # Now update based on the updated values
             zloc = weno.get_stencil(z1, i-2, i+4)        
             # Since k=3
@@ -116,7 +145,7 @@ class TVD2ndWenoModel(NullExnerModel):
             else:
                 flux[i] = weno.get_right_flux(qloc)
                 
-        for i in range(0, baseModel._nx): #i=2       
+        for i in range(buffer, baseModel._nx-buffer): #i=2       
             floc = weno.get_stencil(flux,i - 1, i + 1)
             znp1[i] = 0.5*z[i] + 0.5*z1[i] - 0.5*(1./(1.-baseModel._nP))*dt/baseModel._dx*(floc[1] - floc[0])
         
@@ -142,6 +171,9 @@ class NullShallowHydroMorphologicalModel(object):
         self._mannings = None
         self._ks = None
         self._ycr_factor = 1.0
+        self._modify_bedload_flag = False
+        self._periodic_reattachment_flag = False
+        self._time = 0.0
         
     def setup_bed_properties(self, D50, repose_angle = 30., rho_particle = 2650., nP = 0.4):
         self._D50 = D50
@@ -235,13 +267,15 @@ class NullShallowHydroMorphologicalModel(object):
         nx = len(z)
         zhat = np.zeros(nx)
         zsmooth = np.zeros(nx)
+        
         for i in range(0, nx):  # i=2
-            zlocal = get_stencil(z, i - 1, i + 2)
+            zlocal = weno.get_stencil(z, i - 1, i + 2)
             zhat[i] = 0.5*zlocal[1] + 0.25*(zlocal[0]+zlocal[2])
 
         for i in range(0, nx):
-            zhatlocal = get_stencil(zhat, i - 1, i + 2)
-            zsmooth = (3./2.)*zhatlocal[1] - 0.25*(zhatlocal[0]+zhatlocal[2])
+            zhatlocal = weno.get_stencil(zhat, i - 1, i + 2)
+            zsmooth[i] = (3./2.)*zhatlocal[1] - 0.25*(zhatlocal[0]+zhatlocal[2])
+            
         return zsmooth
             
         
@@ -343,11 +377,11 @@ class NullShallowHydroMorphologicalModel(object):
         if fileName != None:
             np.save(fileName, verts)
             
-        courant = weno.get_Max_Phase_Speed(qbedload, z, self._nP)*dt/self._dx
+        courants = weno.get_Phase_Speeds(qbedload, z, self._nP)*dt/self._dx
         surf = self._zc + h
         
         print('Time step: {0} mins - uavg: {1} - Elevation {2}'.format(timestep/60., u.mean(), surf.mean()))
-        print('Courant number: {0}'.format(courant))
+        print('Courant number: max {0}, mean{1}'.format(courants.max(), courants.mean()))
                     
     
     def run(self, simulationTime, dt, extractionTime, fileName):
@@ -487,25 +521,45 @@ class ModifiedShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel)
 
 
 
-    def _calculate_bedload(self, h, u, x, z):
+    def _calculate_bedload(self, h, u, x, z, a, b):
+        
+        if a is None:
+            a = self._a
+        if b is None:
+            b = self._b
+        
         qbedload = np.zeros(len(x))
-        a = 0.000046
-        b = 4.
-        qbedload = (a*u*(u) **(b-1.))
-        #qbedload = self._modify_bedload(qbedload, x, z, scale_factor=self._scale_factor)
+        # Match 3d
+        #a = 0.00003
+        #b = 2.
+        
+        #match 2d
+        #a = 0.00005
+        #b = 5
+        qbedload = (a*u*np.abs(u) **(b-1.))
+        if self._modify_bedload_flag == True:
+            qbedload = self._modify_bedload(qbedload, x, z, scale_factor=self._scale_factor)
+            #print('Modified the bedload with factor {0}'.format(self._scale_factor))
+            
         return qbedload
 
 
 
     def _get_recirculation_indexes(self, x, z, crest_indexes, bottom_indexes):
 
-  
-
         recirculation_indexes = []
         for i in range(len(crest_indexes)):
 
-            height = z[crest_indexes[i]] - z[bottom_indexes[i]]        
-            xreattachment = (5.* height) + x[crest_indexes[i]]
+            height = z[crest_indexes[i]] - z[bottom_indexes[i]]
+            
+            reattachment_pos = 5.
+            if self._periodic_reattachment_flag == True:
+                fxr = 0.7
+                #reattachment_pos = reattachment_pos + np.sin(2.*math.pi*fxr*self._time)
+                reattachment_pos = reattachment_pos + np.sin(2*math.pi*fxr*self._time)
+                #print(reattachment_pos, self._time)
+            
+            xreattachment = (reattachment_pos * height) + x[crest_indexes[i]]
 
             index = bottom_indexes[i]
             while index < len(x) and x[index] < xreattachment:
@@ -523,23 +577,34 @@ class ModifiedShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel)
         base_indexes = self._get_bottom_indexes(z, crest_indexes, dx)
         reattachment_indexes = self._get_recirculation_indexes(x, z, crest_indexes, base_indexes)
         
+        overshoot = 2
+        
         # Adjust as required
         for i in range(len(crest_indexes)):
 
             qsb_reattachment = qb[reattachment_indexes[i]]
 
             if i+1 < len(crest_indexes):
-                for j in range(crest_indexes[i]+1, reattachment_indexes[i]):
-                    qb_new[j] = qb[j] - qsb_reattachment
+                for j in range(crest_indexes[i] + overshoot, reattachment_indexes[i] ):
+                    qb_new[j] =  0 # qb[j] - qsb_reattachment
 
-                for j in range(reattachment_indexes[i], crest_indexes[i+1]+2):
-                    qb_new[j] = qb[j]*(x[j] - x[reattachment_indexes[i]] )**scale_factor/(x[crest_indexes[i+1]] - x[reattachment_indexes[i]])**scale_factor
+                '''for j in range(reattachment_indexes[i], crest_indexes[i+1]):
+                    qb_new[j] = qb[j] # *(x[j] - x[reattachment_indexes[i]] )**scale_factor/(x[crest_indexes[i+1]] - x[reattachment_indexes[i]])**scale_factor'''
 
         return qb_new
 
     def set_scale_factor(self, scale_factor):
         self._scale_factor = scale_factor
-            
+    
+    def use_modifier(self):
+        self._modify_bedload_flag = True
+        
+    def use_periodic_reattachment(self):
+        self._periodic_reattachment_flag = True
+        
+    def set_grass_parameters(self, a, b):
+        self._a = a
+        self._b = b
     
     def run(self, simulationTime, dt, extractionTime, fileName):
 
@@ -573,7 +638,7 @@ class ModifiedShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel)
         # --------------------------------
         # Initialize the sed transport
         # --------------------------------
-        qbedload = self._calculate_bedload(h, u, self._xc, self._zc) 
+        qbedload = self._calculate_bedload(h, u, self._xc, self._zc, self._a, self._b) 
       
 
         # --------------------------------
@@ -581,6 +646,10 @@ class ModifiedShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel)
         # --------------------------------
         cntr = 0
         for n in range(1, nt):
+            
+            time = n*dt
+            
+            self._time = time
             
             znp1 = np.zeros(self._nx)
 
@@ -594,15 +663,12 @@ class ModifiedShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel)
             # --------------------------------
             if self._useAvalanche == True:
                 znp1 = self._avalanche_model(self._xc, znp1)
-            else:
-                print('Warning - not using avalanche')
             
             # --------------------------------
             # Appy smoothing filter
             # --------------------------------
             if self._useSmoother == True:
                 znp1 = self._apply_smoothing_filter(self._xc, znp1)
-                print('Applying smoothing')
             
             # --------------------------------
             # update the flow
@@ -620,12 +686,12 @@ class ModifiedShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel)
             # --------------------------------
             # update the bedload 
             # --------------------------------
-            qbedload = self._calculate_bedload(self._h, self._u, self._xc, znp1)
+            qbedload = self._calculate_bedload(self._h, self._u, self._xc, znp1, self._a, self._b)
             
             self._zc = znp1
             
             
-            if (n*dt / extractionTime) == math.floor(n*dt / extractionTime):        
+            if (time / extractionTime) == math.floor(time / extractionTime):        
                 timestep = n*dt
                 self._extract_results(self._xc, self._zc, u, q, h, qbedload, timestep, dt, fileName)              
                 #self._calculate_wave_speed(self._zc, timestep)
