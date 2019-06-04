@@ -21,6 +21,8 @@ class NullExnerModel(object):
     def update_bed(self, zc, qbedload, dt, baseModel):
         pass
 
+
+    
 class EulerCentredModel(NullExnerModel):
     def update_bed(self, z, qbedload, dt, baseModel, buffer = 10):
         znp1 = np.zeros(baseModel._nx)
@@ -700,3 +702,281 @@ class ModifiedShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel)
         return self._zc, u, q, h, qbedload
 
     
+class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
+
+    def _calculate_bedload(self, h, u, x, z, a, b):
+        
+        
+        qbedload = np.zeros(len(x))
+        
+        a = 0.00002
+        b = 2
+        c = 1.
+        d = -0.15
+        
+        # So the dune height is 7.9 cm - make the q - 0.00001 at the max height 
+        # This will essentially calibrate the model
+ 
+        # For 32 cm case
+        #qbedload = [((zs - 0.0134)/0.079 * 0.00002) for zs in z]
+        t = self._time / 60.
+        for i in range(self._nx):            
+            znorm = (z[i])/0.079
+            
+            qbedload[i] = a*znorm**(c*math.exp(d*(t))+ 1)           
+            
+        # For 20 cm case
+        #qbedload = [(zs/0.079 * 0.005)**2. for zs in z]
+        
+        return qbedload
+        
+    def run(self, simulationTime, dt, extractionTime, fileName):
+
+        print(' Starting simulation....')
+        # --------------------------------
+        #  Setup the model run parameters
+        # --------------------------------
+        nt = int(simulationTime / dt)  # Number of time steps
+        print('Number of time steps: {0} mins'.format(nt/60.))
+        slope = np.gradient(self._zc, self._dx)
+        
+        self._a = 0
+        self._b = 0
+
+        # --------------------------------
+        # Set up the domain, BCs and ICs
+        # --------------------------------
+        print('Grid dx = {0}'.format(self._dx))
+        print('Grid nx = {0}'.format(self._nx))
+        
+        # --------------------------------
+        # Initialize the hydro model transport
+        # --------------------------------
+        print('Initializing hydrodynamic model...')
+       
+        h  = np.zeros(self._nx)
+        u = np.zeros(self._nx)
+        q = np.zeros(self._nx)
+        
+        print('Completed the intialization of the model')
+
+        print('D50:    {0}'.format(self._D50))
+        print('Rho Particle:    {0}'.format(self._rho_particule))
+        print('Angle Repose Degrees:    {0}'.format(self._repose_angle))
+        # --------------------------------
+        # Initialize the sed transport
+        # --------------------------------
+        qbedload = self._calculate_bedload(h, u, self._xc, self._zc, self._a, self._b) 
+      
+
+        # --------------------------------
+        #  Run the model
+        # --------------------------------
+        cntr = 0
+        for n in range(1, nt):
+            
+            time = n*dt
+            
+            self._time = time
+            
+            znp1 = np.zeros(self._nx)
+
+            # --------------------------------
+            # Update the bed
+            # --------------------------------
+            znp1 = self._exner_model.update_bed(self._zc, qbedload, dt, self)
+            
+            # --------------------------------
+            # Avalanche the bed
+            # --------------------------------
+            if self._useAvalanche == True:
+                znp1 = self._avalanche_model(self._xc, znp1)
+            
+            # --------------------------------
+            # Appy smoothing filter
+            # --------------------------------
+            if self._useSmoother == True:
+                znp1 = self._apply_smoothing_filter(self._xc, znp1)
+           
+            
+            # --------------------------------
+            # update the bedload 
+            # --------------------------------
+            qbedload = self._calculate_bedload(self._h, self._u, self._xc, znp1, self._a, self._b)
+            
+            self._zc = znp1
+            
+            
+            if (time / extractionTime) == math.floor(time / extractionTime):        
+                timestep = n*dt
+                self._extract_results(self._xc, self._zc, u, q, h, qbedload, timestep, dt, fileName)              
+                #self._calculate_wave_speed(self._zc, timestep)
+                #self._calculate_wave_length(self._zc, timestep)
+                #self._calculate_wave_height(self._zc, timestep)
+        return self._zc, u, q, h, qbedload
+    
+    
+    
+class NullQuasiSteadyExnerModel(object):
+    def update_bed(self, zc, qb, qbstar, dt, baseModel):
+        pass
+    
+class EulerQuasiSteadyExnerModel(NullQuasiSteadyExnerModel):
+    
+    def update_bed(self, zn, qbedload, dt, L, baseModel):
+        buffer = 0
+        
+        znp1 = np.zeros(baseModel._nx)
+        
+        for i in range(buffer, baseModel._nx-buffer): #i=2
+            floc = weno.get_stencil(flux, i - 1, i + 1)
+            znp1[i] = zn[i] - (dt/(1. - baseModel._nP))*(1./L)*(qb[i] - qbstar[i])
+            
+        return znp1
+    
+    
+class ShallowUnsteadyHydroMorphologicalModel(NullShallowHydroMorphologicalModel):
+    
+    def _get_qb(self, qbstar, L):
+        buffer = 0
+        tol = 1.e-16
+        dt = 0.0001
+        qb =np.zeros(self._nx) 
+        dx = self._dx
+        
+        for iter in range(500):
+            qbnew = np.zeros(self._nx) 
+            
+            for i in range(buffer, self._nx - buffer):  
+                qloc = weno.get_stencil(qb,i-1,i+2) 
+                
+                qbnew[i] = qloc[1] - (dt/(2.*dx))*(qloc[2] + qb[0]) + (dt/L)*(qbstar[i]-qloc[1])
+                
+                #qbnew[i+1]= qbstar[i+1] +(qb[i] - qbstar[i])*math.exp(-dx/(2.*L)) + (qbstar[i] - qbstar[i+1])*(2*L/dx)*(1-math.exp(-dx/(2.*L)))
+            
+            resid = np.mean(qbnew-qb) 
+            qb = qbnew.copy()
+            if resid < tol:
+                print('break')
+                break
+        print(resid)
+        return qb
+    
+    def set_grass_parameters(self, a, b):
+        self._a = a
+        self._b = b
+    
+    def _calculate_bedload(self, h, u, slope):
+        qbedload = np.zeros(self._nx)
+        
+        
+        #match 2d
+        a = 0.00005
+        b = 5
+        qbedload = (a*u*np.abs(u) **(b-1.))
+        
+        ''' D50 = self._D50 * self._ycr_factor
+        print('calculating')
+        for i in range(0,self._nx):
+            qbedload[i] = sedtrans.get_unit_bed_load_slope(h[i], u[i], D50, slope[i], 
+                                                       self._rho_particule, 
+                                                       angleReposeDegrees = self._repose_angle, 
+                                                       type=self._sed_model,
+                                                        useSlopeAdjust= self._useSlopeAdjust)'''
+        return qbedload
+    
+    def run(self, simulationTime, dt, extractionTime, fileName):
+
+        print(' Starting simulation....')
+        # --------------------------------
+        #  Setup the model run parameters
+        # --------------------------------
+        nt = int(simulationTime / dt)  # Number of time steps
+        print('Number of time steps: {0} mins'.format(nt/60.))
+        slope = np.gradient(self._zc, self._dx)
+
+        # --------------------------------
+        # Set up the domain, BCs and ICs
+        # --------------------------------
+        print('Grid dx = {0}'.format(self._dx))
+        print('Grid nx = {0}'.format(self._nx))
+        
+        # --------------------------------
+        # Initialize the hydro model transport
+        # --------------------------------
+        print('Initializing hydrodynamic model...')
+        h, u, q = self._init_hydrodynamic_model()
+        self._h  = h
+        self._u = u
+        self._q = q
+        print('Completed the intialization of the model')
+
+        print('D50:    {0}'.format(self._D50))
+        print('Rho Particle:    {0}'.format(self._rho_particule))
+        print('Angle Repose Degrees:    {0}'.format(self._repose_angle))
+        # --------------------------------
+        # Initialize the sed transport
+        # --------------------------------
+        qbstar = self._calculate_bedload(h, u, slope)    
+        qb = self._get_qb( qbstar, L)
+        
+        print('Max qbedload = {0}'.format(qbedload.max()))
+        
+
+        # --------------------------------
+        #  Run the model
+        # --------------------------------
+        cntr = 0
+        for n in range(1, nt):
+            
+            znp1 = np.zeros(self._nx)
+
+            # --------------------------------
+            # Update the bed
+            # --------------------------------
+            znp1 = self._exner_model.update_bed(self._zc, qbedload, dt, self)
+            
+            # --------------------------------
+            # Avalanche the bed
+            # --------------------------------
+            if self._useAvalanche == True:
+                znp1 = self._avalanche_model(self._xc, znp1)
+            else:
+                print('Warning - not using avalanche')
+            
+            # --------------------------------
+            # Appy smoothing filter
+            # --------------------------------
+            if self._useSmoother == True:
+                znp1 = self._apply_smoothing_filter(self._xc, znp1)
+                print('Applying smoothing')
+            
+            # --------------------------------
+            # update the flow
+            # --------------------------------
+            
+            if cntr > -1:
+                h, u, q = self._update_hydrodynamic_model(h, q, 
+                                                      self._xc, znp1, tfinal=self._update_time)
+                self._h  = h
+                self._u = u
+                self._q = q
+                cntr = 0
+            cntr += 1
+            
+            # --------------------------------
+            # update the bedload 
+            # --------------------------------
+            slope = np.gradient(znp1,self._dx)
+            qbedload = self._calculate_bedload(self._h, self._u, slope)
+            
+            self._zc = znp1
+            
+            
+            if (n*dt / extractionTime) == math.floor(n*dt / extractionTime):        
+                timestep = n*dt
+                self._extract_results(self._xc, self._zc, u, q, h, qbedload, timestep, dt, fileName)              
+                #self._calculate_wave_speed(self._zc, timestep)
+                #self._calculate_wave_length(self._zc, timestep)
+                #self._calculate_wave_height(self._zc, timestep)
+        return self._zc, u, q, h, qbedload
