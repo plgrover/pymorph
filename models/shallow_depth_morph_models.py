@@ -16,6 +16,7 @@ from scipy.signal import savgol_filter
 import scipy
 import scipy.ndimage as sciim
 from scipy.signal import find_peaks
+from scipy.interpolate import interp1d
 
 class NullExnerModel(object):
     def update_bed(self, zc, qbedload, dt, baseModel):
@@ -709,22 +710,47 @@ class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
         
         qbedload = np.zeros(len(x))
         
-        a = 0.00002
+        a = 0.0000127 # qbed max
         b = 2
-        c = 1.
-        d = -0.15
+        c = 1.25
+        d = -0.025
         
         # So the dune height is 7.9 cm - make the q - 0.00001 at the max height 
         # This will essentially calibrate the model
  
         # For 32 cm case
-        #qbedload = [((zs - 0.0134)/0.079 * 0.00002) for zs in z]
+        #qbedload = [((zs - 0.0134)/0.079 * 0.0000127) for zs in z]
+        
+        
         t = self._time / 60.
-        for i in range(self._nx):            
-            znorm = (z[i])/0.079
+        m =  (c*math.exp(d*(t))+ 1)
+
+        
+        znorm = np.array([(zs- 0.0034) for zs in z])        
+        znorm = znorm.clip(min=0.)        
+        zmean = znorm.max() - znorm.min()
+        
+        if znorm.min() < 0.:
+            print('Error: {0}'.format(znorm.min()))
+        #qbedload =  np.array([ a * pow(zs,m) / zmean for zs in znorm])
+        # Are the numbers you are attempting to exponentiate ever negative? 
+        # If so, are you aware that raising a negative number to a non-integral power is undefined (or at least ventures into the realm of complex numbers)? –
+        
+        # Apply dune length correction
+        d = 0.001666667
+        e = 0.01
+        n = e/(e + math.exp(-1.*d*self._time))
+        
+        start = (2.-n)/1.
+        
+        multiplier = np.linspace(start,1,len(x))
             
-            qbedload[i] = a*znorm**(c*math.exp(d*(t))+ 1)           
+        for i in range(len(znorm)):
             
+            
+            qbedload[i] =multiplier[i]*((a * znorm[i]**m) / 0.036) # + a *(x[i]/12.)**((1.-n)/1.)
+        
+              
         # For 20 cm case
         #qbedload = [(zs/0.079 * 0.005)**2. for zs in z]
         
@@ -773,6 +799,9 @@ class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
         #  Run the model
         # --------------------------------
         cntr = 0
+        
+        xmax = self._xc.max()
+        resolution_cells = len(self._xc)
         for n in range(1, nt):
             
             time = n*dt
@@ -797,7 +826,18 @@ class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
             # --------------------------------
             if self._useSmoother == True:
                 znp1 = self._apply_smoothing_filter(self._xc, znp1)
-           
+                
+            # Apply dune length correction
+            '''a = 0.001666667
+            b = 0.01
+            
+            m = b/(b + math.exp(-1.*b*time))
+            xnew = np.linspace(0,xmax*0.5**m, len(self._zc))
+            #f = interp1d(xadj, self._zc, fill_value="extrapolate")
+            
+            #xnew = np.linspace(0., xmax, num=resolution_cells)
+            #self._zc = f(xnew)
+            self._xc = xnew'''
             
             # --------------------------------
             # update the bedload 
@@ -810,10 +850,7 @@ class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
             if (time / extractionTime) == math.floor(time / extractionTime):        
                 timestep = n*dt
                 self._extract_results(self._xc, self._zc, u, q, h, qbedload, timestep, dt, fileName)              
-                #self._calculate_wave_speed(self._zc, timestep)
-                #self._calculate_wave_length(self._zc, timestep)
-                #self._calculate_wave_height(self._zc, timestep)
-        return self._zc, u, q, h, qbedload
+        return self._xc, self._zc, u, q, h, qbedload
     
     
     

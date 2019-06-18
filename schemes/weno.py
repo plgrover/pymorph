@@ -105,6 +105,8 @@ def get_Phase_Speeds(qbedload,z,nP):
         if dz != 0.:
             Cs[i] = dq/((1-nP)*dz)
     return Cs
+
+
 def get_stencil(ulist: object, start_index: object, end_index: object) -> object:
     '''
     Method to get the stencil - implements a periodic BC
