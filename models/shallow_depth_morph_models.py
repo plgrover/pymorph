@@ -132,7 +132,7 @@ class TVD2ndWenoModel(NullExnerModel):
             zloc = weno.get_stencil(z1, i-2, i+4)        
             # Since k=3
             # stencil is i-2 to i+2 
-            qloc = weno.get_stencil(qbedload1, i-2, i+4)
+            qloc = weno.get_stencil(qbedload, i-2, i+4)
             
             # Determine the Upwind flux
             # The 0.5 comes from the c+abs(c) which is 2 if the wave speed is +ive
