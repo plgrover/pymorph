@@ -705,56 +705,9 @@ class ModifiedShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel)
     
 class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
 
-    def _calculate_bedload(self, h, u, x, z, a, b):
-        
-        
-        qbedload = np.zeros(len(x))
-        
-        a = 0.0000127 # qbed max
-        b = 2
-        c = 1.25
-        d = -0.025
-        
-        # So the dune height is 7.9 cm - make the q - 0.00001 at the max height 
-        # This will essentially calibrate the model
- 
-        # For 32 cm case
-        #qbedload = [((zs - 0.0134)/0.079 * 0.0000127) for zs in z]
-        
-        
-        t = self._time / 60.
-        m =  (c*math.exp(d*(t))+ 1)
+    def set_bedload_model(self, bedloadModel):
+        self._bedloadModel = bedloadModel
 
-        
-        znorm = np.array([(zs- 0.0034) for zs in z])        
-        znorm = znorm.clip(min=0.)        
-        zmean = znorm.max() - znorm.min()
-        
-        if znorm.min() < 0.:
-            print('Error: {0}'.format(znorm.min()))
-        #qbedload =  np.array([ a * pow(zs,m) / zmean for zs in znorm])
-        # Are the numbers you are attempting to exponentiate ever negative? 
-        # If so, are you aware that raising a negative number to a non-integral power is undefined (or at least ventures into the realm of complex numbers)? –
-        
-        # Apply dune length correction
-        d = 0.001666667
-        e = 0.01
-        n = e/(e + math.exp(-1.*d*self._time))
-        
-        start = (2.-n)/1.
-        
-        multiplier = np.linspace(start,1,len(x))
-            
-        for i in range(len(znorm)):
-            
-            
-            qbedload[i] =multiplier[i]*((a * znorm[i]**m) / 0.036) # + a *(x[i]/12.)**((1.-n)/1.)
-        
-              
-        # For 20 cm case
-        #qbedload = [(zs/0.079 * 0.005)**2. for zs in z]
-        
-        return qbedload
         
     def run(self, simulationTime, dt, extractionTime, fileName):
 
@@ -842,8 +795,10 @@ class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
             # --------------------------------
             # update the bedload 
             # --------------------------------
-            qbedload = self._calculate_bedload(self._h, self._u, self._xc, znp1, self._a, self._b)
-            
+            #qbedload = self._calculate_bedload(self._h, self._u, self._xc, znp1, self._a, self._b)
+
+            qbedload = self._bedloadModel.calculate_bedload(self._h, self._u, self._xc, znp1, self._time)
+
             self._zc = znp1
             
             
@@ -852,7 +807,101 @@ class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
                 self._extract_results(self._xc, self._zc, u, q, h, qbedload, timestep, dt, fileName)              
         return self._xc, self._zc, u, q, h, qbedload
     
-    
+'''
+This is the abstract class for the bedload model
+'''
+class NullBedloadModel(object):
+    def calculate_bedload(self, h, u, x, z, t):
+        pass
+
+class EquilibriumBedloadModel(NullBedloadModel):
+
+    def __init__(self, qsb_max, delta, z_offset):
+        self.__qsb_max = qsb_max
+        self.__delta = delta
+        self.__z_offset = z_offset
+
+    def calculate_bedload(self, h, u, x, z, t):
+
+        qbedload = [((zs - self.__z_offset)/self.__delta * self.__qsb_max) for zs in z]
+        return  qbedload
+
+'''
+This model should decay the dune height
+'''
+class NonEquilibriumBedloadModel(NullBedloadModel):
+
+    def __init__(self, qsb_max, delta, z_offset, c, d):
+        self.__qsb_max = qsb_max
+        self.__delta = delta
+        self.__z_offset = z_offset
+        self.__c = c
+        self.__d = d
+
+    def calculate_bedload(self, h, u, x, z, t):
+        decay = self.__c * math.exp(self.__d*t + 1)
+        qbedload = [math.pow(((zs - self.__z_offset) / self.__delta * self.__qsb_max),decay) for zs in z]
+
+        return qbedload
+
+
+
+'''
+This is a working version of a bed load model
+'''
+class DummyBedloadModel(NullBedloadModel):
+    def __init__(self,a, b):
+        self._a = a
+        self._b = b
+
+    def calculate_bedload(self, h, u, x, z, t):
+
+        qbedload = np.zeros(len(x))
+
+        a = 0.0000127  # qbed max
+        b = 2
+        c = 1.25
+        d = -0.025
+
+        # So the dune height is 7.9 cm - make the q - 0.00001 at the max height
+        # This will essentially calibrate the model
+
+        # For 32 cm case
+        # qbedload = [((zs - 0.0134)/0.079 * 0.0000127) for zs in z]
+
+        #t = self._time / 60.
+        m = (c * math.exp(d * (t)) + 1)
+
+        znorm = np.array([(zs - 0.0034) for zs in z])
+        znorm = znorm.clip(min=0.)
+        zmean = znorm.max() - znorm.min()
+
+        if znorm.min() < 0.:
+            print('Error: {0}'.format(znorm.min()))
+
+        # qbedload =  np.array([ a * pow(zs,m) / zmean for zs in znorm])
+        # Are the numbers you are attempting to exponentiate ever negative?
+        # If so, are you aware that raising a negative number to a non-integral power is undefined (or at least ventures into the realm of complex numbers)? –
+
+        # Apply dune length correction
+        d = 0.001666667
+        e = 0.01
+        n = e / (e + math.exp(-1. * d * self._time))
+
+        start = (2. - n) / 1.
+
+        multiplier = np.linspace(start, 1, len(x))
+
+        for i in range(len(znorm)):
+            qbedload[i] = multiplier[i] * ((a * znorm[i] ** m) / 0.036)  # + a *(x[i]/12.)**((1.-n)/1.)
+
+        # For 20 cm case
+        # qbedload = [(zs/0.079 * 0.005)**2. for zs in z]
+
+        return qbedload
+
+
+
     
 class NullQuasiSteadyExnerModel(object):
     def update_bed(self, zc, qb, qbstar, dt, baseModel):

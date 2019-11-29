@@ -103,8 +103,9 @@ def plot_results(verts, dx, dt, extractionTime):
     
     spl_height = UnivariateSpline(times, heights, k=4)
     ts = np.linspace(0, times.max(), len(verts))
-    
-    heights_filtered = savgol_filter(heights,81,2)
+
+    #heights_filtered = savgol_filter(heights,81,2)
+    heights_filtered = savgol_filter(heights, len(heights)/2, 2)
 
     #ax1.plot(ts, spl_height(ts))
     ax1.plot(times, heights_filtered)
