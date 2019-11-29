@@ -745,7 +745,7 @@ class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
         # --------------------------------
         # Initialize the sed transport
         # --------------------------------
-        qbedload = self._calculate_bedload(h, u, self._xc, self._zc, self._a, self._b) 
+        qbedload = self._bedloadModel.calculate_bedload(self._h, self._u, self._xc, znp1, self._time)
       
 
         # --------------------------------
