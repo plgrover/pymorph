@@ -497,9 +497,7 @@ class ShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel):
                 #self._calculate_wave_length(self._zc, timestep)
                 #self._calculate_wave_height(self._zc, timestep)
         return self._zc, u, q, h, qbedload
-    
-    
-    
+
     
 class ModifiedShallowHydroMorphologicalModel(NullShallowHydroMorphologicalModel):
 
@@ -708,7 +706,10 @@ class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
     def set_bedload_model(self, bedloadModel):
         self._bedloadModel = bedloadModel
 
-        
+
+    def _calculate_bedload(self, h, u, xc, z, a, b):
+        self._bedloadModel.calculate_bedload(h, u, xc, z, self._time)
+
     def run(self, simulationTime, dt, extractionTime, fileName):
 
         print(' Starting simulation....')

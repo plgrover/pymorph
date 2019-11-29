@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="ae4f9d78-019e-47bb-ad3a-96976afa1225" name="Default" comment="" />
+    <list default="true" id="ae4f9d78-019e-47bb-ad3a-96976afa1225" name="Default" comment="">
+      <change beforePath="$PROJECT_DIR$/models/shallow_depth_morph_models.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/shallow_depth_morph_models.py" afterDir="false" />
+    </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -33,17 +35,16 @@
           <file pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/models/shallow_depth_morph_models.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="171">
-                  <caret line="707" column="25" selection-start-line="707" selection-start-column="8" selection-end-line="707" selection-end-column="25" />
+                <state relative-caret-position="499">
+                  <caret line="718" column="58" lean-forward="true" selection-start-line="718" selection-start-column="58" selection-end-line="718" selection-end-column="58" />
                   <folding>
                     <element signature="e#588#651#0" />
                     <element signature="e#704#1029#0" />
                     <element signature="e#1079#2032#0" />
                     <element signature="e#2089#3418#0" />
-                    <element signature="e#3473#6367#0" />
                     <element signature="e#6490#15483#0" />
                     <element signature="e#15569#19294#0" />
-                    <element signature="e#32420#37893#0" />
+                    <element signature="e#19402#26500#0" />
                   </folding>
                 </state>
               </provider>
@@ -132,7 +133,7 @@
       </list>
     </option>
   </component>
-  <component name="ProjectFrameBounds" extendedState="7">
+  <component name="ProjectFrameBounds" extendedState="6">
     <option name="x" value="436" />
     <option name="y" value="368" />
     <option name="width" value="1936" />
@@ -228,7 +229,7 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="-8" y="-8" width="1936" height="1056" extended-state="7" />
+    <frame x="-8" y="-8" width="1936" height="1056" extended-state="6" />
     <editor active="true" />
     <layout>
       <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.092750534" />
@@ -432,17 +433,16 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/models/shallow_depth_morph_models.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="171">
-          <caret line="707" column="25" selection-start-line="707" selection-start-column="8" selection-end-line="707" selection-end-column="25" />
+        <state relative-caret-position="499">
+          <caret line="718" column="58" lean-forward="true" selection-start-line="718" selection-start-column="58" selection-end-line="718" selection-end-column="58" />
           <folding>
             <element signature="e#588#651#0" />
             <element signature="e#704#1029#0" />
             <element signature="e#1079#2032#0" />
             <element signature="e#2089#3418#0" />
-            <element signature="e#3473#6367#0" />
             <element signature="e#6490#15483#0" />
             <element signature="e#15569#19294#0" />
-            <element signature="e#32420#37893#0" />
+            <element signature="e#19402#26500#0" />
           </folding>
         </state>
       </provider>
