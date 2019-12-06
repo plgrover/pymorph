@@ -64,7 +64,7 @@ def calculate_wave_movement(last_peak_index, current_z, dx):
 
     return updated_peak
 
-def calculate_wave_speed(verts, dx, dt, step_index = 4, base_index = 0):
+def calculate_wave_speed(verts, dx, dt, step_index = 20, base_index = 2):
     last_peak_index = None
     velocities = []
     timesteps = []
@@ -78,11 +78,16 @@ def calculate_wave_speed(verts, dx, dt, step_index = 4, base_index = 0):
             delta = peaks[base_index] - last_peak_index[base_index]
             
             if delta == 0:
-                raise ValueError('Delta was zero')
-            if delta > 0:
+                #raise ValueError('Delta was zero')
+                t += step_index
+            if delta >= 0:
                 velocities.append(delta*dx/(dt*step_index))
             else:
-                velocities.append(velocities[len(velocities)-1])
+                if len(velocities) > 0:
+                    velocities.append(velocities[len(velocities)-1])
+                else:
+                    velocities.append(0.)
+
             
             timesteps.append( dt * t )
             #print(delta, delta*dx/(dt*step_index), dt * t)
@@ -105,7 +110,7 @@ def plot_results(verts, dx, dt, extractionTime):
     ts = np.linspace(0, times.max(), len(verts))
 
     #heights_filtered = savgol_filter(heights,81,2)
-    heights_filtered = savgol_filter(heights, len(heights)/2, 2)
+    heights_filtered = savgol_filter(heights, int(len(heights)/2), 2)
 
     #ax1.plot(ts, spl_height(ts))
     ax1.plot(times, heights_filtered)
@@ -138,7 +143,7 @@ def plot_results(verts, dx, dt, extractionTime):
     ax3.set_ylabel('$\delta$ (-)')
     
     
-    # Steepness
+   # Steepness
     steepness = np.zeros(len(lengths))
     for i in range(len(lengths)):
         steepness[i] = heights[i]/lengths[i]

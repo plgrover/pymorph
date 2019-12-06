@@ -838,12 +838,40 @@ class NonEquilibriumBedloadModel(NullBedloadModel):
         self.__z_offset = z_offset
         self.__c = c
         self.__d = d
+        print('Initalized')
 
     def calculate_bedload(self, h, u, x, z, t):
-        decay = self.__c * math.exp(self.__d*t + 1)
-        qbedload = [math.pow(((zs - self.__z_offset) / self.__delta * self.__qsb_max),decay) for zs in z]
+
+        znorm = np.array([zs - self.__z_offset for zs in z])
+        znorm = znorm.clip(min=0.)
+        zmean = znorm.max() - znorm.min()
+
+        decay = self.__c * math.exp(self.__d*t/60.) + 1
+        #print('Decay: ', decay)
+        qbedload = [self.__qsb_max*( zs/ self.__delta )**decay for zs in znorm]
 
         return qbedload
+
+class NonEquilibriumBedloadModel2(NullBedloadModel):
+
+    def __init__(self, qsb_max, delta, z_offset, c, d):
+        self.__qsb_max = qsb_max
+        self.__delta = delta
+        self.__z_offset = z_offset
+        self.__c = c
+        self.__d = d
+
+    def calculate_bedload(self, h, u, x, z, t):
+        znorm = np.array([zs - self.__z_offset for zs in z])
+        znorm = znorm.clip(min=0.)
+        
+        #decay = (1 - self.__c*math.exp(self.__d*t/60.))
+        #qbedload = [self.__qsb_max*(z - (z**self.__d)/self. for zs in z]
+        qbedload = [self.__qsb_max*(((zs)/self.__delta)) - 0.15 * self.__qsb_max*(zs/self.__delta)**7    for zs in z]
+
+        return qbedload
+
+        
 
 
 
