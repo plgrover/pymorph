@@ -37,6 +37,8 @@ class MacCormackModel(NullExnerModel):
     def update_bed(self, z, qbedload, dt, baseModel, buffer = 0):
         znp1 = np.zeros(baseModel._nx)
         zhatn = np.zeros(baseModel._nx)
+        
+        #print('Hey dude',len(qbedload))
 
         for i in range(buffer, baseModel._nx-buffer): #i=2      
             qloc = weno.get_stencil(qbedload,i-1,i+2)  
@@ -47,6 +49,9 @@ class MacCormackModel(NullExnerModel):
         #slope1 = np.gradient(z1)
         qbedload1 = baseModel._calculate_bedload(h1, u1, baseModel._xc, zhatn, baseModel._a, baseModel._b)
 
+        #print('Hey dude1',len(zhatn))
+        #qbedload1 = baseModel._calculate_bedload(h1, u1, baseModel._xc, z1, baseModel._a, baseModel._b)
+        
         for i in range(buffer, baseModel._nx-buffer): #i=2       
             qloc = weno.get_stencil(qbedload1,i - 1, i + 2)  
             znp1[i] = 0.5*(zhatn[i]+z[i]) - (1/(1.- baseModel._nP))*dt/(baseModel._dx*2.)*(qloc[2] - qloc[1])
@@ -708,7 +713,7 @@ class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
 
 
     def _calculate_bedload(self, h, u, xc, z, a, b):
-        self._bedloadModel.calculate_bedload(h, u, xc, z, self._time)
+        return self._bedloadModel.calculate_bedload(h, u, xc, z, self._time)
 
     def run(self, simulationTime, dt, extractionTime, fileName):
 
