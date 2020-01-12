@@ -16,13 +16,13 @@ import models.shallow_depth_morph_models as shallow_models
 from schemes.avalanche_scheme import *
 
 
-class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
+class ParameterizedMorphologicalModel(shallow_models.NullShallowHydroMorphologicalModel):
 
     def set_bedload_model(self, bedloadModel):
         self._bedloadModel = bedloadModel
 
 
-    def _calculate_bedload(self, h, u, xc, z, a, b):
+    def _calculate_bedload(self, h, u, xc, z, a=None, b=None):
         return self._bedloadModel.calculate_bedload(h, u, xc, z, self._time)
 
     def run(self, simulationTime, dt, extractionTime, fileName):
@@ -61,6 +61,7 @@ class ParameterizedMorphologicalModel(NullShallowHydroMorphologicalModel):
         # --------------------------------
         # Initialize the sed transport
         # --------------------------------
+        
         qbedload = self._bedloadModel.calculate_bedload(self._h, self._u, self._xc, self._zc, self._time)
       
 
@@ -185,10 +186,6 @@ class NonEquilibriumBedloadModel2(NullBedloadModel):
         qbedload = [self.__qsb_max*(((zs)/self.__delta)) - 0.15 * self.__qsb_max*(zs/self.__delta)**7    for zs in z]
 
         return qbedload
-
-        
-
-
 
 '''
 This is a working version of a bed load model

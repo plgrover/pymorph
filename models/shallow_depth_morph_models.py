@@ -98,6 +98,7 @@ class NullShallowHydroMorphologicalModel(object):
         self._sws = None
         self._update_time = 10
         
+        
     def _init_hydrodynamic_model(self, tfinal=300., max_steps=100000):
         #--------------------------------
         # Initalize the model
@@ -121,6 +122,15 @@ class NullShallowHydroMorphologicalModel(object):
         q = self._sws.get_qf()
 
         return h, u, q
+    
+    def get_h(self):
+        return self._sws.get_hf()
+    
+    def get_u(self):
+        return self._sws.get_hf()
+    
+    def get_q(self):
+        return self._sws.get_qf()
     
     def _adjust_ycr(self, factor):
         self._ycr_factor = factor
