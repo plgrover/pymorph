@@ -19,11 +19,13 @@ This is a modudel containing different implementations of the Exner Models
 
 
 class NullExnerModel(object):
+    def __init__(self,nP):
+        self._nP = nP
     def update_bed(self, zc, qbedload, dt, baseModel):
         pass
 
 class EulerUpwindModel(NullExnerModel):
-    def update_bed(self, z, qbedload, dt, baseModel, buffer = 10):
+    def update_bed(self, zn, qbedload, dt, baseModel, buffer = 10):
         znp1 = np.zeros(baseModel._nx)
         for i in range(buffer, baseModel._nx-buffer): #i=2       
             qloc = weno.get_stencil(qbedload,i-2,i+4) 
@@ -39,7 +41,7 @@ class EulerUpwindModel(NullExnerModel):
                 alpha = np.sign( (qloc[3]-qloc[2])/ (zloc[3]-zloc[2]) )
                 
             qloc = weno.get_stencil(qbedload,i-1,i+2)  
-            znp1[i] = zn[i]-(1./(1.-nP))*(dt/dx)*0.5*( (1+alpha[i])*(qloc[1] - qloc[0])  + (1 - alpha[i])*(qloc[2] - qloc[1]))
+            znp1[i] = zn[i]-(1./(1.-baseModel._nP))*(dt/baseModel._dx)*0.5*( (1+alpha)*(qloc[1] - qloc[0])  + (1 - alpha)*(qloc[2] - qloc[1]))
             
         return znp1
     
