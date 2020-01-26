@@ -159,7 +159,7 @@ def plot_results(verts, dx, dt, extractionTime):
     v = [vs*60. for vs in v]
     timesteps=np.array(timesteps)
     
-    spl_vs = UnivariateSpline(timesteps, v, k=2)
+    spl_vs = UnivariateSpline(timesteps, v, k=1)
     ts = np.linspace(0, timesteps.max(), len(verts))
     
     v_filtered = savgol_filter(v,25,2)
