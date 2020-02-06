@@ -139,8 +139,10 @@ class EquilibriumBedloadModel(NullBedloadModel):
         self.__z_offset = z_offset
 
     def calculate_bedload(self, h, u, x, z, t):
-
-        qbedload = [((zs - self.__z_offset)/self.__delta * self.__qsb_max) for zs in z]
+        znorm = np.array([zs - self.__z_offset for zs in z])
+        znorm = znorm.clip(min=0.)
+        
+        qbedload = [((zs/self.__delta) * self.__qsb_max) for zs in znorm]
         return  qbedload
 
 '''

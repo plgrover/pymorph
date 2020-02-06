@@ -113,13 +113,17 @@ class EulerWenoModel(NullExnerModel):
             
         return znp1
 
-    
+'''
+See: https://www.ams.org/journals/mcom/1998-67-221/S0025-5718-98-00913-2/S0025-5718-98-00913-2.pdf
+E.Q. 2.4
+'''    
 class TVD2ndWenoModel(NullExnerModel):
     
     def update_bed(self, z, qbedload, dt, baseModel, buffer = 0):
         
         # Step 1 - Estimate z1
         z1 = np.zeros(baseModel._nx) 
+        z2 = np.zeros(baseModel._nx)
         znp1 = np.zeros(baseModel._nx)
         flux = np.zeros(baseModel._nx)
         
@@ -146,16 +150,62 @@ class TVD2ndWenoModel(NullExnerModel):
                 
         for i in range(buffer, baseModel._nx-buffer): #i=2
             floc = weno.get_stencil(flux,i - 1, i + 1)
-            z1[i] = z[i]-(1./(1.-baseModel._nP))*dt/baseModel._dx*(floc[1] - floc[0])
+            z1[i] = z[i] - (1./(1.-baseModel._nP))*(dt/baseModel._dx)*(floc[1] - floc[0])
             
         # Now update hydraulics using z1, and update the bedload
         h1, u1, q1 = baseModel._update_hydrodynamic_model(baseModel._h, baseModel._q, baseModel._xc, z1, baseModel._update_time)
-        #slope1 = np.gradient(z1)
-        qbedload1 = baseModel._calculate_bedload(h1, u1, baseModel._xc, z1, baseModel._a, baseModel._b)
+        slope1 = np.gradient(z1)
+        qbedload_np1 = baseModel._calculate_bedload(h1, u1, baseModel._xc, z1, baseModel._a, baseModel._b)
         
         for i in range(buffer, baseModel._nx-buffer): #i=2
             # Now update based on the updated values
             zloc = weno.get_stencil(z1, i-2, i+4)        
+            # Since k=3
+            # stencil is i-2 to i+2 
+            qloc = weno.get_stencil(qbedload_np1, i-2, i+4)
+            
+            # Determine the Upwind flux
+            # The 0.5 comes from the c+abs(c) which is 2 if the wave speed is +ive
+            # this is the evaluation of the left and right based fluxes. Eq. 18 and 19        
+            roe_speed = 0.0
+            if (zloc[3]-zloc[2]) == 0.0:
+                roe_speed = np.sign( (qloc[3] - qloc[2]) )
+            else:
+                roe_speed = np.sign( (qloc[3] - qloc[2])/(zloc[3] - zloc[2]) )
+
+            if roe_speed >= 0.0:
+                flux[i] = weno.get_left_flux(qloc)
+            else:
+                flux[i] = weno.get_right_flux(qloc)
+                
+        for i in range(buffer, baseModel._nx-buffer): #i=2       
+            floc = weno.get_stencil(flux,i - 1, i + 1)
+            znp1[i] = 0.5*z[i] + 0.5*z1[i] - 0.5*(1./(1. - baseModel._nP))*(dt/baseModel._dx)*(floc[1] - floc[0])
+            #z2[i] = z1[i] - (1./(1. - baseModel._nP))*(dt/baseModel._dx)*(floc[1] - floc[0])
+            
+            #znp1[i] = 0.5*z2[i] + 0.5*z1[i]
+        return znp1
+    
+'''
+https://www.ams.org/journals/mcom/1998-67-221/S0025-5718-98-00913-2/S0025-5718-98-00913-2.pdf
+Eq. 3.3
+'''
+class TVD3rdWenoModel(NullExnerModel):
+    
+    def update_bed(self, z, qbedload, dt, baseModel, buffer = 0):
+        
+        # Step 1 - Estimate z1
+        z1 = np.zeros(baseModel._nx) 
+        z2 = np.zeros(baseModel._nx)
+        znp1 = np.zeros(baseModel._nx)
+        flux = np.zeros(baseModel._nx)
+        
+        #------------------------------------------------------------------
+        # z1 
+        # -----------------------------------------------------------------
+        # Note that I have modified these to move away from the inlet/outlet
+        for i in range(buffer, baseModel._nx-buffer): #i=2
+            zloc = weno.get_stencil(z, i-2, i+4)        
             # Since k=3
             # stencil is i-2 to i+2 
             qloc = weno.get_stencil(qbedload, i-2, i+4)
@@ -174,8 +224,68 @@ class TVD2ndWenoModel(NullExnerModel):
             else:
                 flux[i] = weno.get_right_flux(qloc)
                 
+        for i in range(buffer, baseModel._nx-buffer): #i=2
+            floc = weno.get_stencil(flux,i - 1, i + 1)
+            z1[i] = z[i] - (1./(1.-baseModel._nP))*(dt/baseModel._dx)*(floc[1] - floc[0])
+            
+        #------------------------------------------------------------------
+        # z2 
+        # -----------------------------------------------------------------
+        qbedload_z1 = baseModel._calculate_bedload(h1, u1, baseModel._xc, z1, baseModel._a, baseModel._b)
+        
+        for i in range(buffer, baseModel._nx-buffer): #i=2
+            # Now update based on the updated values
+            zloc = weno.get_stencil(z1, i-2, i+4)        
+            # Since k=3
+            # stencil is i-2 to i+2 
+            qloc = weno.get_stencil(qbedload_z1, i-2, i+4)
+            
+            # Determine the Upwind flux
+            # The 0.5 comes from the c+abs(c) which is 2 if the wave speed is +ive
+            # this is the evaluation of the left and right based fluxes. Eq. 18 and 19        
+            roe_speed = 0.0
+            if (zloc[3]-zloc[2]) == 0.0:
+                roe_speed = np.sign( (qloc[3] - qloc[2]) )
+            else:
+                roe_speed = np.sign( (qloc[3] - qloc[2])/(zloc[3] - zloc[2]) )
+
+            if roe_speed >= 0.0:
+                flux[i] = weno.get_left_flux(qloc)
+            else:
+                flux[i] = weno.get_right_flux(qloc)
+                
         for i in range(buffer, baseModel._nx-buffer): #i=2       
             floc = weno.get_stencil(flux,i - 1, i + 1)
-            znp1[i] = 0.5*z[i] + 0.5*z1[i] - 0.5*(1./(1.-baseModel._nP))*dt/baseModel._dx*(floc[1] - floc[0])
+            z2[i] = 0.75*z[i] + 0.25*z1[i] - 0.25*(1./(1. - baseModel._nP))*(dt/baseModel._dx)*(floc[1] - floc[0])
+            
+        #------------------------------------------------------------------
+        # znp1 
+        # -----------------------------------------------------------------
+        qbedload_z2 = baseModel._calculate_bedload(h1, u1, baseModel._xc, z1, baseModel._a, baseModel._b)
+        
+        for i in range(buffer, baseModel._nx-buffer): #i=2
+            # Now update based on the updated values
+            zloc = weno.get_stencil(z2, i-2, i+4)        
+            # Since k=3
+            # stencil is i-2 to i+2 
+            qloc = weno.get_stencil(qbedload_z2, i-2, i+4)
+            
+            # Determine the Upwind flux
+            # The 0.5 comes from the c+abs(c) which is 2 if the wave speed is +ive
+            # this is the evaluation of the left and right based fluxes. Eq. 18 and 19        
+            roe_speed = 0.0
+            if (zloc[3]-zloc[2]) == 0.0:
+                roe_speed = np.sign( (qloc[3] - qloc[2]) )
+            else:
+                roe_speed = np.sign( (qloc[3] - qloc[2])/(zloc[3] - zloc[2]) )
+
+            if roe_speed >= 0.0:
+                flux[i] = weno.get_left_flux(qloc)
+            else:
+                flux[i] = weno.get_right_flux(qloc)
+                
+        for i in range(buffer, baseModel._nx-buffer): #i=2       
+            floc = weno.get_stencil(flux,i - 1, i + 1)
+            znp1[i] = (1./3.)*z[i] + (2./3.)*z2[i] - (2./3.)*(1./(1. - baseModel._nP))*(dt/baseModel._dx)*(floc[1] - floc[0])
         
         return znp1

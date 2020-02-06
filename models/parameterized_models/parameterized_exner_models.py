@@ -143,8 +143,8 @@ class TVD2ndWenoModel(NullExnerModel):
             
         #slope1 = np.gradient(z1)
         
-        qbedload1 = baseModel._calculate_bedload(baseModel._h, baseModel._u, baseModel._xc, z1, baseModel._time)
-        #qbedload1 = baseModel._calculate_bedload(z1)
+        qbedload = baseModel._calculate_bedload(baseModel._h, baseModel._u, baseModel._xc, z1, baseModel._time)
+        
         
         for i in range(buffer, baseModel._nx-buffer): #i=2
             # Now update based on the updated values
