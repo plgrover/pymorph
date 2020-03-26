@@ -66,6 +66,8 @@ def source_chezy(solver,state,dt):
     cf = ((1./kappa)*np.log(0.368*q[0,:]/ks) + Bs)   
     
     # Based on eq. 1.16 and solving for S. (mulitply by h first)
+    
+    # March 2, 2002 - hceking on this to make sure it makes sense, modified the exponent oj
     Sf = q[1,:]*np.abs(q[1,:])/(g*(cf**2.)*q[0,:]**(3.))
     
     q[1,:] = q[1,:] + q[0,:]*g*(Slope - Sf)*dt

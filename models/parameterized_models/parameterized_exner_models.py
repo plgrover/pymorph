@@ -23,7 +23,7 @@ class NullExnerModel(object):
         pass
 
 class EulerUpwindModel(NullExnerModel):
-    def update_bed(self, zn, qbedload, dt, baseModel, buffer = 10):
+    def update_bed(self, zn, qbedload, dt, baseModel, buffer = 0):
         znp1 = np.zeros(baseModel._nx)
         for i in range(buffer, baseModel._nx-buffer): #i=2       
             qloc = weno.get_stencil(qbedload,i-2,i+4) 
@@ -44,7 +44,7 @@ class EulerUpwindModel(NullExnerModel):
         return znp1
     
 class EulerCentredModel(NullExnerModel):
-    def update_bed(self, z, qbedload, dt, baseModel, buffer = 10):
+    def update_bed(self, z, qbedload, dt, baseModel, buffer = 0):
         znp1 = np.zeros(baseModel._nx)
         for i in range(buffer, baseModel._nx-buffer): #i=2       
             qloc = weno.get_stencil(qbedload,i-1,i+2)  
@@ -52,7 +52,6 @@ class EulerCentredModel(NullExnerModel):
         return znp1
 
 class MacCormackModel(NullExnerModel):
-    
     def update_bed(self, z, qbedload, dt, baseModel, buffer = 0):
         znp1 = np.zeros(baseModel._nx)
         zhatn = np.zeros(baseModel._nx)
@@ -64,10 +63,10 @@ class MacCormackModel(NullExnerModel):
             zhatn[i] = z[i]-(1./(1.- baseModel._nP))*dt/(baseModel._dx)*(qloc[1] - qloc[0])
 
         #slope1 = np.gradient(z1)
-        qbedload1 = baseModel._calculate_bedload(zhatn)
+        qbedload = baseModel._calculate_bedload(baseModel._h, baseModel._u, baseModel._xc, zhatn, baseModel._time)
         
         for i in range(buffer, baseModel._nx-buffer): #i=2       
-            qloc = weno.get_stencil(qbedload1,i - 1, i + 2)  
+            qloc = weno.get_stencil(qbedload, i - 1, i + 2)  
             znp1[i] = 0.5*(zhatn[i]+z[i]) - (1/(1.- baseModel._nP))*dt/(baseModel._dx*2.)*(qloc[2] - qloc[1])
 
         return znp1        

@@ -32,6 +32,29 @@ class EulerCentredModel(NullExnerModel):
             znp1[i] = z[i]-(1./(1.-nP))*dt/(baseModel._dx*2.)*(qloc[2] - qloc[0])
         return znp1
 
+    
+    
+class EulerUpwindModel(NullExnerModel):
+    def update_bed(self, zn, qbedload, dt, baseModel, buffer = 0):
+        znp1 = np.zeros(baseModel._nx)
+        for i in range(buffer, baseModel._nx-buffer): #i=2       
+            qloc = weno.get_stencil(qbedload,i-2,i+4) 
+            zloc = weno.get_stencil(zn,i-2,i+4)
+            
+            # Determine the Upwind flux
+            # The 0.5 comes from the c+abs(c) which is 2 if the wave speed is +ive
+            # this is the evaluation of the left and right based fluxes. Eq. 18 and 19
+            alpha = 0.
+            if (zloc[3]-zloc[2]) == 0.0:
+                alpha = np.sign( (qloc[3]-qloc[2]) )
+            else:
+                alpha = np.sign( (qloc[3]-qloc[2])/ (zloc[3]-zloc[2]) )
+                
+            qloc = weno.get_stencil(qbedload,i-1,i+2)  
+            znp1[i] = zn[i]-(1./(1.-baseModel._nP))*(dt/baseModel._dx)*0.5*( (1+alpha)*(qloc[1] - qloc[0])  + (1 - alpha)*(qloc[2] - qloc[1]))
+            
+        return znp1
+    
 class MacCormackModel(NullExnerModel):
     
     def update_bed(self, z, qbedload, dt, baseModel, buffer = 0):
@@ -44,11 +67,13 @@ class MacCormackModel(NullExnerModel):
 
         # Now update hydraulics using z1, and update the bedload
         h1, u1, q1 = baseModel._update_hydrodynamic_model(baseModel._h, baseModel._q, baseModel._xc, zhatn, baseModel._update_time)
-        #slope1 = np.gradient(z1)
-        qbedload1 = baseModel._calculate_bedload(h1, u1, baseModel._xc, zhatn, baseModel._a, baseModel._b)
+        slope = np.gradient(zhatn)
+        # This was as I found it 
+        #qbedload = baseModel._calculate_bedload(h1, u1, baseModel._xc, zhatn, baseModel._a, baseModel._b)
+        qbedload = baseModel._calculate_bedload(h1, u1, slope)
 
         for i in range(buffer, baseModel._nx-buffer): #i=2       
-            qloc = weno.get_stencil(qbedload1,i - 1, i + 2)  
+            qloc = weno.get_stencil(qbedload,i - 1, i + 2)  
             znp1[i] = 0.5*(zhatn[i]+z[i]) - (1/(1.- baseModel._nP))*dt/(baseModel._dx*2.)*(qloc[2] - qloc[1])
 
         return znp1        
