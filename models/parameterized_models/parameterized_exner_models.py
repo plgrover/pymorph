@@ -77,6 +77,7 @@ class EulerWenoModel(NullExnerModel):
         
         znp1 = np.zeros(baseModel._nx)
         flux = np.zeros(baseModel._nx)
+        # Note that I have modified these to move away from the inlet/outlet
         for i in range(buffer, baseModel._nx-buffer): #i=2
             zloc = weno.get_stencil(z, i-2, i+4)        
             # Since k=3
@@ -97,11 +98,9 @@ class EulerWenoModel(NullExnerModel):
             else:
                 flux[i] = weno.get_right_flux(qloc)
                 
-        # Need the sign of the phase speed
-        # Need to check this out
         for i in range(buffer, baseModel._nx-buffer): #i=2
-            floc = weno.get_stencil(flux, i - 1, i + 1)
-            znp1[i] = z[i] - (1./(1. - baseModel._nP))*(dt/(baseModel._dx))*(floc[1] - floc[0])
+            floc = weno.get_stencil(flux,i - 1, i + 1)
+            znp1[i] = z[i]-(1./(1.-baseModel._nP))*dt/baseModel._dx*(floc[1] - floc[0])
             
         return znp1
 

@@ -25,11 +25,11 @@ class NullExnerModel(object):
 
     
 class EulerCentredModel(NullExnerModel):
-    def update_bed(self, z, qbedload, dt, baseModel, buffer = 10):
+    def update_bed(self, z, qbedload, dt, baseModel, buffer = 0):
         znp1 = np.zeros(baseModel._nx)
         for i in range(buffer, baseModel._nx-buffer): #i=2       
             qloc = weno.get_stencil(qbedload,i-1,i+2)  
-            znp1[i] = z[i]-(1./(1.-nP))*dt/(baseModel._dx*2.)*(qloc[2] - qloc[0])
+            znp1[i] = z[i]-(1./(1.-baseModel._n))*dt/(baseModel._dx*2.)*(qloc[2] - qloc[0])
         return znp1
 
     
@@ -45,13 +45,13 @@ class EulerUpwindModel(NullExnerModel):
             # The 0.5 comes from the c+abs(c) which is 2 if the wave speed is +ive
             # this is the evaluation of the left and right based fluxes. Eq. 18 and 19
             alpha = 0.
-            if (zloc[3]-zloc[2]) == 0.0:
-                alpha = np.sign( (qloc[3]-qloc[2]) )
+            if (zloc[3] - zloc[2]) == 0.0:
+                alpha = np.sign( (qloc[3] - qloc[2]) )
             else:
-                alpha = np.sign( (qloc[3]-qloc[2])/ (zloc[3]-zloc[2]) )
+                alpha = np.sign( (qloc[3] - qloc[2])/(zloc[3] - zloc[2]) )
                 
             qloc = weno.get_stencil(qbedload,i-1,i+2)  
-            znp1[i] = zn[i]-(1./(1.-baseModel._nP))*(dt/baseModel._dx)*0.5*( (1+alpha)*(qloc[1] - qloc[0])  + (1 - alpha)*(qloc[2] - qloc[1]))
+            znp1[i] = zn[i] - (1./(1. - baseModel._nP))*(dt/baseModel._dx)*0.5*( (1 + alpha)*(qloc[1] - qloc[0])  + (1 - alpha)*(qloc[2] - qloc[1]))
             
         return znp1
     
@@ -74,7 +74,7 @@ class MacCormackModel(NullExnerModel):
 
         for i in range(buffer, baseModel._nx-buffer): #i=2       
             qloc = weno.get_stencil(qbedload,i - 1, i + 2)  
-            znp1[i] = 0.5*(zhatn[i]+z[i]) - (1/(1.- baseModel._nP))*dt/(baseModel._dx*2.)*(qloc[2] - qloc[1])
+            znp1[i] = 0.5*(zhatn[i] + z[i]) - (1/(1. - baseModel._nP))*dt/(baseModel._dx*2.)*(qloc[2] - qloc[1])
 
         return znp1        
 
@@ -263,7 +263,7 @@ class NullShallowHydroMorphologicalModel(object):
         self._sws = None
         self._update_time = 10
         
-    def _init_hydrodynamic_model(self, tfinal=300., max_steps=100000):
+    def _init_hydrodynamic_model(self, tfinal=300., max_steps=100000, intiflow=0.1):
         #--------------------------------
         # Initalize the model
         #--------------------------------
@@ -277,7 +277,9 @@ class NullShallowHydroMorphologicalModel(object):
             self._sws.set_mannings_source_term(mannings=self._mannings, slope=self._bed_slope)
         
         self._sws.set_Dirichlet_BC(self._sOut, self._qin)
-        self._sws.set_inital_conditions(self._sOut, 0.0)
+        
+        #!!!!!!!!!!!
+        self._sws.set_inital_conditions(self._sOut, intiflow)
         self._sws.set_controller(tfinal = tfinal, num_output_times=1)
         self._sws.run()
         

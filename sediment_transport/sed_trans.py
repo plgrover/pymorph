@@ -58,8 +58,8 @@ def get_cf(h,D0):
     c_f = (1./kappa)*math.log1p(11.*h/ks)
     return c_f
 
-def get_bed_shear(h,u,D0):
-    cf = get_cf(h,D0)
+def get_bed_shear(h,u,D50):
+    cf = get_cf(h,D50)
     tau_bed = rho*(u/cf)**2.
     return tau_bed
 

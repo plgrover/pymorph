@@ -10,6 +10,21 @@ from scipy.signal import savgol_filter
 from IPython.display import display, Math, Latex
 from matplotlib import animation, rc
 
+def get_top_peaks(x, z,dx):
+    top_peaks, _ = find_peaks(z, height = z.mean()*1.1)
+    xtop = [x[i] for i in top_peaks]
+    ztop = [z[i] for i in top_peaks]
+    return xtop, ztop
+    
+def get_bottom_peaks(x,z,dx):
+    bottom_peaks, _ = find_peaks(-1.*z, height = z.mean()*-0.8, distance = int(1.2/dx))
+    zbottom = [z[i] for i in bottom_peaks]
+    xbottom = [x[i] for i in bottom_peaks]
+    return xbottom, zbottom
+    
+    
+    
+    
 def calculate_wave_height(z, dx):
     top_peaks, _ = find_peaks(z, height = z.mean()*1.1)
     bottom_peaks, _ = find_peaks(-1.*z, height = z.mean()*-0.8, distance = int(1.2/dx))
@@ -49,7 +64,7 @@ def calculate_wave_length(z,dx):
     lengths = np.array(lengths)
     lengths = np.delete(lengths, lengths.argmin())
     lengths = np.delete(lengths, lengths.argmax())
-    return lengths
+    return lengths[0]
     
 def calculate_wave_movement(last_peak_index, current_z, dx):
     
@@ -63,6 +78,9 @@ def calculate_wave_movement(last_peak_index, current_z, dx):
             break
 
     return updated_peak
+
+
+
 
 def calculate_wave_speed(verts, dx, dt, step_index = 20, base_index = 2):
     last_peak_index = None
