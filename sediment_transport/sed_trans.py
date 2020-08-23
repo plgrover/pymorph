@@ -74,6 +74,11 @@ def get_Y(shear, D0, rho_particule):
     y = shear / (gammaS * D0)
     return y
 
+def get_tau_cr(Ycr, D0, rho_particule):
+    gammaS = get_gammS(rho_particule)
+    tau_cr = Ycr*gammaS*D0
+    return tau_cr
+
 #def get_unit_bed_load(h,u,D0,rho_particule,method='mpm'):
 def get_unit_bed_load(**kwargs): 
     
